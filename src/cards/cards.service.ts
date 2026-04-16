@@ -1,12 +1,18 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Card } from './schemas/card.schema';
+import { Transaction } from '../transactions/transaction.schema';
+import { UsersService } from '../users/users.service';
 import { CreateCardDto } from './dto/create-card.dto';
 
 @Injectable()
 export class CardsService {
-  constructor(@InjectModel(Card.name) private cardModel: Model<Card>) {}
+  constructor(
+    @InjectModel(Card.name) private cardModel: Model<Card>,
+    @InjectModel(Transaction.name) private transactionModel: Model<Transaction>,
+    private usersService: UsersService,
+  ) {}
 
   private generateCardNumber(): string {
     let result = '';
@@ -108,10 +114,32 @@ export class CardsService {
   /** Alimenter une carte depuis le solde principal (wallet → card) */
   async topupCard(userId: string, cardId: string, amount: number): Promise<Card> {
     if (amount <= 0) throw new BadRequestException('Montant invalide');
+    
+    const user = await this.usersService.findById(userId);
+    if (!user) throw new NotFoundException('Utilisateur introuvable');
+    if ((user.balance || 0) < amount) {
+      throw new BadRequestException(`Solde insuffisant (B$ ${user.balance?.toFixed(2)})`);
+    }
+
     const card = await this.cardModel.findOne({ _id: cardId, userId }).exec();
     if (!card) throw new NotFoundException('Carte introuvable');
     if (card.status === 'FROZEN') throw new BadRequestException('Carte gelée');
+
+    // Create transaction record
+    const transaction = new this.transactionModel({
+      userId: new Types.ObjectId(userId),
+      type: 'CARD_TOPUP',
+      amount,
+      description: `Alimentation carte ${card.name}`,
+      status: 'SUCCESS',
+      category: 'Carte',
+      toCardId: card._id,
+    });
+
+    await this.usersService.updateBalance(userId, -amount);
     card.cardBalance = (card.cardBalance || 0) + amount;
+    
+    await transaction.save();
     return card.save();
   }
 
@@ -132,6 +160,18 @@ export class CardsService {
     from.cardBalance = (from.cardBalance || 0) - amount;
     to.cardBalance   = (to.cardBalance   || 0) + amount;
 
+    const transaction = new this.transactionModel({
+      userId: new Types.ObjectId(userId),
+      type: 'CARD_TRANSFER',
+      amount,
+      description: `Transfert ${from.name} → ${to.name}`,
+      status: 'SUCCESS',
+      category: 'Carte',
+      fromCardId: from._id,
+      toCardId: to._id,
+    });
+
+    await transaction.save();
     await from.save();
     await to.save();
     return { from, to };
