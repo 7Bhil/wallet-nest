@@ -105,10 +105,17 @@ export class CardsService {
   }
 
   async remove(userId: string, cardId: string): Promise<void> {
-    const result = await this.cardModel.deleteOne({ _id: cardId, userId }).exec();
-    if (result.deletedCount === 0) {
-      throw new NotFoundException('Card not found');
+    const card = await this.cardModel.findOne({ _id: cardId, userId }).exec();
+    if (!card) {
+      throw new NotFoundException('Carte introuvable');
     }
+
+    // Si la carte avait un solde, on le rend au coffre-fort de l'utilisateur
+    if (card.cardBalance > 0) {
+      await this.usersService.updateBalance(userId, card.cardBalance);
+    }
+    
+    await this.cardModel.deleteOne({ _id: cardId }).exec();
   }
 
   /** Alimenter une carte depuis le solde principal (wallet → card) */
