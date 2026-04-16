@@ -23,6 +23,11 @@ export class CardsController {
     return this.cardsService.freezeCard(req.user.id, id);
   }
 
+  @Patch(':id/default')
+  setDefault(@Request() req: any, @Param('id') id: string) {
+    return this.cardsService.setDefault(req.user.id, id);
+  }
+
   @Post(':id/topup')
   topupCard(
     @Request() req: any,

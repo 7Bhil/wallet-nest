@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Transaction } from './transaction.schema';
+import { Card } from '../cards/schemas/card.schema';
 import { UsersService } from '../users/users.service';
 import { CurrencyService } from '../currency/currency.service';
 
@@ -9,6 +10,7 @@ import { CurrencyService } from '../currency/currency.service';
 export class TransactionsService {
   constructor(
     @InjectModel(Transaction.name) private transactionModel: Model<Transaction>,
+    @InjectModel(Card.name) private cardModel: Model<Card>,
     private usersService: UsersService,
     private currencyService: CurrencyService,
   ) {}
@@ -16,8 +18,9 @@ export class TransactionsService {
   async recharge(userId: string, amount: number, currency: string, description: string): Promise<Transaction> {
     const amountInBSD = this.currencyService.convert(amount, currency, 'BSD');
     const rate = this.currencyService.getRate(currency);
+    const user = await this.usersService.findById(userId);
 
-    const transaction = new this.transactionModel({
+    const transactionData: any = {
       userId: new Types.ObjectId(userId),
       type: 'TOPUP',
       amount: amountInBSD,
@@ -27,9 +30,16 @@ export class TransactionsService {
       originalAmount: amount,
       originalCurrency: currency.toUpperCase(),
       exchangeRate: rate,
-    });
+    };
 
-    await this.usersService.updateBalance(userId, amountInBSD);
+    if (user?.defaultCardId) {
+      transactionData.toCardId = user.defaultCardId;
+      await this.cardModel.findByIdAndUpdate(user.defaultCardId, { $inc: { cardBalance: amountInBSD } });
+    } else {
+      await this.usersService.updateBalance(userId, amountInBSD);
+    }
+
+    const transaction = new this.transactionModel(transactionData);
     return transaction.save();
   }
 
@@ -56,6 +66,25 @@ export class TransactionsService {
     const desc = note || `Transfert à ${recipient.fullName}`;
     const descRecipient = note || `Reçu de ${sender.fullName}`;
 
+    const creditData: any = {
+      userId: recipient._id,
+      type: 'TRANSFER_IN',
+      amount,
+      description: descRecipient,
+      status: 'SUCCESS',
+      category: 'Transfert',
+      senderId: new Types.ObjectId(senderId),
+    };
+
+    await this.usersService.updateBalance(senderId, -amount);
+
+    if (recipient.defaultCardId) {
+      creditData.toCardId = recipient.defaultCardId;
+      await this.cardModel.findByIdAndUpdate(recipient.defaultCardId, { $inc: { cardBalance: amount } });
+    } else {
+      await this.usersService.updateBalance(recipient._id.toString(), amount);
+    }
+
     const debit = new this.transactionModel({
       userId: new Types.ObjectId(senderId),
       type: 'TRANSFER_OUT',
@@ -66,18 +95,7 @@ export class TransactionsService {
       recipientId: recipient._id,
     });
 
-    const credit = new this.transactionModel({
-      userId: recipient._id,
-      type: 'TRANSFER_IN',
-      amount,
-      description: descRecipient,
-      status: 'SUCCESS',
-      category: 'Transfert',
-      senderId: new Types.ObjectId(senderId),
-    });
-
-    await this.usersService.updateBalance(senderId, -amount);
-    await this.usersService.updateBalance(recipient._id.toString(), amount);
+    const credit = new this.transactionModel(creditData);
 
     await debit.save();
     await credit.save();

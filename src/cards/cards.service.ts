@@ -176,4 +176,11 @@ export class CardsService {
     await to.save();
     return { from, to };
   }
+
+  /** Définir une carte comme carte de réception par défaut */
+  async setDefault(userId: string, cardId: string): Promise<void> {
+    const card = await this.cardModel.findOne({ _id: cardId, userId }).exec();
+    if (!card) throw new NotFoundException('Carte introuvable');
+    await this.usersService.updateProfile(userId, { defaultCardId: card._id as any });
+  }
 }
