@@ -23,6 +23,23 @@ export class CardsController {
     return this.cardsService.freezeCard(req.user.id, id);
   }
 
+  @Post(':id/topup')
+  topupCard(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: { amount: number }
+  ) {
+    return this.cardsService.topupCard(req.user.id, id, body.amount);
+  }
+
+  @Post('transfer')
+  cardTransfer(
+    @Request() req: any,
+    @Body() body: { fromCardId: string; toCardId: string; amount: number }
+  ) {
+    return this.cardsService.cardTransfer(req.user.id, body.fromCardId, body.toCardId, body.amount);
+  }
+
   @Delete(':id')
   remove(@Request() req: any, @Param('id') id: string) {
     return this.cardsService.remove(req.user.id, id);

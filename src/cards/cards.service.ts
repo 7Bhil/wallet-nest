@@ -104,4 +104,36 @@ export class CardsService {
       throw new NotFoundException('Card not found');
     }
   }
+
+  /** Alimenter une carte depuis le solde principal (wallet → card) */
+  async topupCard(userId: string, cardId: string, amount: number): Promise<Card> {
+    if (amount <= 0) throw new BadRequestException('Montant invalide');
+    const card = await this.cardModel.findOne({ _id: cardId, userId }).exec();
+    if (!card) throw new NotFoundException('Carte introuvable');
+    if (card.status === 'FROZEN') throw new BadRequestException('Carte gelée');
+    card.cardBalance = (card.cardBalance || 0) + amount;
+    return card.save();
+  }
+
+  /** Transférer des B$ d'une carte à une autre (appartenant au même user) */
+  async cardTransfer(userId: string, fromCardId: string, toCardId: string, amount: number): Promise<{ from: Card; to: Card }> {
+    if (amount <= 0) throw new BadRequestException('Montant invalide');
+    if (fromCardId === toCardId) throw new BadRequestException('Les deux cartes doivent être différentes');
+
+    const from = await this.cardModel.findOne({ _id: fromCardId, userId }).exec();
+    const to   = await this.cardModel.findOne({ _id: toCardId,   userId }).exec();
+
+    if (!from || !to) throw new NotFoundException('Carte(s) introuvable(s)');
+    if (from.status === 'FROZEN') throw new BadRequestException('La carte source est gelée');
+    if ((from.cardBalance || 0) < amount) {
+      throw new BadRequestException(`Solde insuffisant sur cette carte (B$ ${from.cardBalance?.toFixed(2)})`);
+    }
+
+    from.cardBalance = (from.cardBalance || 0) - amount;
+    to.cardBalance   = (to.cardBalance   || 0) + amount;
+
+    await from.save();
+    await to.save();
+    return { from, to };
+  }
 }

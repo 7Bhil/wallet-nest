@@ -44,6 +44,9 @@ export class Card extends Document {
 
   @Prop({ default: 0 })
   interestRate: number;
+
+  @Prop({ default: 0 })
+  cardBalance: number;
 }
 
 export const CardSchema = SchemaFactory.createForClass(Card);

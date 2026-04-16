@@ -9,10 +9,18 @@ export class TransactionsController {
 
   @Post('recharge')
   async recharge(
-    @Request() req: any, 
+    @Request() req: any,
     @Body() body: { amount: number; currency: string; description: string }
   ) {
     return this.transactionsService.recharge(req.user.id, body.amount, body.currency, body.description);
+  }
+
+  @Post('transfer')
+  async transfer(
+    @Request() req: any,
+    @Body() body: { recipientEmail: string; amount: number; note?: string }
+  ) {
+    return this.transactionsService.transfer(req.user.id, body.recipientEmail, body.amount, body.note || '');
   }
 
   @Get('my')

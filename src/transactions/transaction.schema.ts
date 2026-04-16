@@ -6,7 +6,7 @@ export class Transaction extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
-  @Prop({ required: true, enum: ['TOPUP', 'PAYMENT', 'FEE', 'TRANSFER'] })
+  @Prop({ required: true, enum: ['TOPUP', 'PAYMENT', 'FEE', 'TRANSFER', 'TRANSFER_IN', 'TRANSFER_OUT', 'CARD_TOPUP', 'CARD_TRANSFER'] })
   type: string;
 
   @Prop({ required: true })
@@ -29,6 +29,18 @@ export class Transaction extends Document {
 
   @Prop()
   exchangeRate?: number;
+
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  recipientId?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  senderId?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'Card' })
+  fromCardId?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'Card' })
+  toCardId?: Types.ObjectId;
 }
 
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);
