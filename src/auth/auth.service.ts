@@ -41,6 +41,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (user.status === 'BLOCKED') {
+      throw new UnauthorizedException('Votre compte a été suspendu. Veuillez contacter l\'administrateur.');
+    }
+
     const payload = { email: user.email, sub: user._id, role: user.role, fullName: user.fullName };
     return {
       access_token: this.jwtService.sign(payload),

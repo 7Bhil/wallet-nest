@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from '../users/user.schema';
@@ -43,7 +43,10 @@ export class AdminService {
     return this.userModel.find().select('-password').exec();
   }
 
-  async toggleUserStatus(userId: string) {
+  async toggleUserStatus(userId: string, adminId: string) {
+    if (userId === adminId) {
+      throw new BadRequestException("Vous ne pouvez pas vous bloquer vous-même.");
+    }
     const user = await this.userModel.findById(userId);
     if (!user) return null;
     user.status = user.status === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE';

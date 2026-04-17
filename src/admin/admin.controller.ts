@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Param, UseGuards, Request } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -21,8 +21,8 @@ export class AdminController {
   }
 
   @Patch('users/:id/toggle-status')
-  async toggleStatus(@Param('id') id: string) {
-    return this.adminService.toggleUserStatus(id);
+  async toggleStatus(@Param('id') id: string, @Request() req: any) {
+    return this.adminService.toggleUserStatus(id, req.user.id);
   }
 
   @Get('feed')

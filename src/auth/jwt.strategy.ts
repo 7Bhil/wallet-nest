@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -13,7 +13,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET') || 'default-secret-key',
+      secretOrKey: configService.get<string>('JWT_SECRET') || 'wallet-super-secret-key-2026-v1',
     });
   }
 
@@ -21,6 +21,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const user = await this.usersService.findById(payload.sub);
     if (!user) {
       return null;
+    }
+
+    if (user.status === 'BLOCKED') {
+      throw new UnauthorizedException('Votre compte est bloqué.');
     }
     return { 
       id: user._id, 
