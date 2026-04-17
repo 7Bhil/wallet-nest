@@ -18,8 +18,8 @@ export class TransactionsService {
   ) {}
 
   async recharge(userId: string, amount: number, currency: string, description: string): Promise<Transaction> {
-    const amountInBSD = this.currencyService.convert(amount, currency, 'BSD');
-    const rate = this.currencyService.getRate(currency);
+    const amountInBSD = await this.currencyService.convertToBSD(amount, currency);
+    const rate = await this.currencyService.getLatestRate(currency);
     const user = await this.usersService.findById(userId);
 
     const transactionData: any = {
