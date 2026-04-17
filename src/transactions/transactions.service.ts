@@ -5,6 +5,7 @@ import { Transaction } from './transaction.schema';
 import { Card } from '../cards/schemas/card.schema';
 import { UsersService } from '../users/users.service';
 import { CurrencyService } from '../currency/currency.service';
+import { NotificationsGateway } from '../notifications/notifications.gateway';
 
 @Injectable()
 export class TransactionsService {
@@ -13,6 +14,7 @@ export class TransactionsService {
     @InjectModel(Card.name) private cardModel: Model<Card>,
     private usersService: UsersService,
     private currencyService: CurrencyService,
+    private notificationsGateway: NotificationsGateway,
   ) {}
 
   async recharge(userId: string, amount: number, currency: string, description: string): Promise<Transaction> {
@@ -33,14 +35,29 @@ export class TransactionsService {
     };
 
     if (user?.defaultCardId) {
-      transactionData.toCardId = user.defaultCardId;
-      await this.cardModel.findByIdAndUpdate(user.defaultCardId, { $inc: { cardBalance: amountInBSD } });
+      const card = await this.cardModel.findById(user.defaultCardId);
+      if (card && (card.cardBalance + amountInBSD) <= card.limitValue) {
+        transactionData.toCardId = user.defaultCardId;
+        await this.cardModel.findByIdAndUpdate(user.defaultCardId, { $inc: { cardBalance: amountInBSD } });
+      } else {
+        // Fallback au coffre-fort si la carte est pleine ou introuvable
+        await this.usersService.updateBalance(userId, amountInBSD);
+      }
     } else {
       await this.usersService.updateBalance(userId, amountInBSD);
     }
 
     const transaction = new this.transactionModel(transactionData);
-    return transaction.save();
+    await transaction.save();
+
+    this.notificationsGateway.sendNotification(userId, {
+      type: 'TOPUP',
+      title: 'Compte Rechargé',
+      message: `Vous avez reçu B$ ${amountInBSD.toFixed(2)} !`,
+      amount: amountInBSD
+    });
+
+    return transaction;
   }
 
   async transfer(
@@ -79,8 +96,14 @@ export class TransactionsService {
     await this.usersService.updateBalance(senderId, -amount);
 
     if (recipient.defaultCardId) {
-      creditData.toCardId = recipient.defaultCardId;
-      await this.cardModel.findByIdAndUpdate(recipient.defaultCardId, { $inc: { cardBalance: amount } });
+      const card = await this.cardModel.findById(recipient.defaultCardId);
+      if (card && (card.cardBalance + amount) <= card.limitValue) {
+        creditData.toCardId = recipient.defaultCardId;
+        await this.cardModel.findByIdAndUpdate(recipient.defaultCardId, { $inc: { cardBalance: amount } });
+      } else {
+        // Fallback au coffre-fort si la carte est pleine
+        await this.usersService.updateBalance(recipient._id.toString(), amount);
+      }
     } else {
       await this.usersService.updateBalance(recipient._id.toString(), amount);
     }
@@ -99,6 +122,13 @@ export class TransactionsService {
 
     await debit.save();
     await credit.save();
+
+    this.notificationsGateway.sendNotification(recipient._id.toString(), {
+      type: 'TRANSFER_IN',
+      title: 'Transfert Reçu',
+      message: `${sender.fullName} vous a envoyé B$ ${amount.toFixed(2)} !`,
+      amount: amount
+    });
 
     return { debit, credit };
   }

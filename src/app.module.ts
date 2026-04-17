@@ -8,6 +8,7 @@ import { UsersModule } from './users/users.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { CardsModule } from './cards/cards.module';
 import { CurrencyModule } from './currency/currency.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { CurrencyModule } from './currency/currency.module';
     TransactionsModule,
     CardsModule,
     CurrencyModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -132,6 +132,11 @@ export class CardsService {
     if (!card) throw new NotFoundException('Carte introuvable');
     if (card.status === 'FROZEN') throw new BadRequestException('Carte gelée');
 
+    // Vérifier le plafond de la carte
+    if (card.cardBalance + amount > card.limitValue) {
+      throw new BadRequestException(`Plafond de la carte atteint. Capacité restante: B$ ${(card.limitValue - card.cardBalance).toFixed(2)}`);
+    }
+
     // Create transaction record
     const transaction = new this.transactionModel({
       userId: new Types.ObjectId(userId),
@@ -160,6 +165,12 @@ export class CardsService {
 
     if (!from || !to) throw new NotFoundException('Carte(s) introuvable(s)');
     if (from.status === 'FROZEN') throw new BadRequestException('La carte source est gelée');
+    
+    // Vérifier le plafond de la carte de destination
+    if (to.cardBalance + amount > to.limitValue) {
+      throw new BadRequestException(`Plafond de la carte de destination atteint (${to.name}). Capacité restante: B$ ${(to.limitValue - to.cardBalance).toFixed(2)}`);
+    }
+
     if ((from.cardBalance || 0) < amount) {
       throw new BadRequestException(`Solde insuffisant sur cette carte (B$ ${from.cardBalance?.toFixed(2)})`);
     }

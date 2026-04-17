@@ -36,4 +36,19 @@ export class UsersService {
       { new: true }
     ).exec();
   }
+
+  async search(query: string, excludeId: string): Promise<any[]> {
+    if (!query || query.length < 2) return [];
+    
+    return this.userModel.find({
+      _id: { $ne: excludeId },
+      $or: [
+        { fullName: { $regex: query, $options: 'i' } },
+        { email: { $regex: query, $options: 'i' } }
+      ]
+    })
+    .select('_id fullName email')
+    .limit(10)
+    .exec();
+  }
 }
