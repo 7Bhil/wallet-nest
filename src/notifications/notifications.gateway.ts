@@ -26,7 +26,7 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
     if (!token) return client.disconnect();
 
     try {
-      const decoded: any = jwt.verify(token, process.env.JWT_SECRET || 'wallora-super-secret-key-2026-v1');
+      const decoded: any = jwt.verify(token, process.env.JWT_SECRET || 'wallet-super-secret-key-2026-v1');
       const userId = decoded.sub;
 
       if (!this.userSockets.has(userId)) {

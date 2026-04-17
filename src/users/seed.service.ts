@@ -19,7 +19,7 @@ export class SeedService implements OnModuleInit {
     if (!existingAdmin) {
       const hashedPassword = await bcrypt.hash('admin123', 10);
       const admin = new this.userModel({
-        fullName: 'Administrateur Wallora',
+        fullName: 'Administrateur Wallet',
         email: adminEmail,
         password: hashedPassword,
         role: 'ADMIN',
