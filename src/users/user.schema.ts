@@ -21,6 +21,9 @@ export class User extends Document {
   @Prop({ default: 'USD' })
   currency: string;
 
+  @Prop({ default: 'ACTIVE', enum: ['ACTIVE', 'BLOCKED'] })
+  status: string;
+
   @Prop({ type: Types.ObjectId, ref: 'Card' })
   defaultCardId: Types.ObjectId;
 }
