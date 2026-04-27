@@ -29,4 +29,9 @@ export class AdminController {
   async getFeed() {
     return this.adminService.getGlobalFeed();
   }
+
+  @Get('users/:id')
+  async getUserDetails(@Param('id') id: string) {
+    return this.adminService.getUserDetails(id);
+  }
 }

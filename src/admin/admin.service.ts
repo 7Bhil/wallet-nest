@@ -61,4 +61,31 @@ export class AdminService {
       .limit(10)
       .exec();
   }
+
+  async getUserDetails(userId: string) {
+    const user = await this.userModel.findById(userId).select('-password').exec();
+    if (!user) throw new BadRequestException('Utilisateur introuvable');
+    
+    const cards = await this.cardModel.find({ userId }).exec();
+    
+    // Find all transactions where the user is either the owner, sender, or recipient
+    const transactions = await this.transactionModel.find({
+      $or: [
+        { userId: userId },
+        { senderId: userId },
+        { recipientId: userId }
+      ]
+    })
+    .populate('senderId', 'fullName email')
+    .populate('recipientId', 'fullName email')
+    .sort({ createdAt: -1 })
+    .limit(50)
+    .exec();
+
+    return {
+      user,
+      cards,
+      transactions
+    };
+  }
 }
