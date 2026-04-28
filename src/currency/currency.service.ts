@@ -36,6 +36,7 @@ export class CurrencyService implements OnModuleInit {
       const data = await response.json();
 
       if (data && data.rates) {
+        this.rawRates = data.rates;
         // Pour les retraits (B$ -> Local) : on donne moins de devise locale
         // Si 1 B$ = 0.92 EUR réel, on donne 0.92 * (1 - 0.02) = 0.90 EUR
         this.fromBsdRates = {};
@@ -62,6 +63,7 @@ export class CurrencyService implements OnModuleInit {
     return {
       toBSD: this.toBsdRates,
       fromBSD: this.fromBsdRates,
+      fiatRates: this.rawRates,
       commission: this.SPREAD_COMMISSION,
       lastUpdate: new Date(this.lastUpdate)
     };
@@ -79,8 +81,39 @@ export class CurrencyService implements OnModuleInit {
     return bsdAmount * rate;
   }
 
+  /**
+   * Convertit un montant d'une devise locale à une autre avec un spread de 2%
+   */
+  async convertFiat(amount: number, from: string, to: string): Promise<number> {
+    await this.ensureFreshRates();
+    if (from === to) return amount;
+    
+    // On convertit via USD comme pivot
+    // 1. De 'from' -> USD (réel)
+    // 2. De USD -> 'to' (réel)
+    // 3. Appliquer le SPREAD une seule fois sur le total
+    
+    const rateFrom = this.rawRates[from.toUpperCase()] || 1;
+    const rateTo = this.rawRates[to.toUpperCase()] || 1;
+    
+    const amountInUsd = amount / rateFrom;
+    const finalAmount = amountInUsd * rateTo * (1 - this.SPREAD_COMMISSION);
+    
+    return finalAmount;
+  }
+
+  async getFiatRate(from: string, to: string): Promise<number> {
+    await this.ensureFreshRates();
+    if (from === to) return 1;
+    const rateFrom = this.rawRates[from.toUpperCase()] || 1;
+    const rateTo = this.rawRates[to.toUpperCase()] || 1;
+    return (rateTo / rateFrom) * (1 - this.SPREAD_COMMISSION);
+  }
+
   async getLatestRate(currency: string): Promise<number> {
     await this.ensureFreshRates();
     return this.toBsdRates[currency.toUpperCase()] || (1 - this.SPREAD_COMMISSION);
   }
+
+  private rawRates: { [key: string]: number } = { USD: 1 };
 }

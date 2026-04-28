@@ -6,7 +6,7 @@ export class Transaction extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
-  @Prop({ required: true, enum: ['TOPUP', 'PAYMENT', 'FEE', 'TRANSFER', 'TRANSFER_IN', 'TRANSFER_OUT', 'CARD_TOPUP', 'CARD_TRANSFER'] })
+  @Prop({ required: true, enum: ['TOPUP', 'PAYMENT', 'FEE', 'TRANSFER', 'TRANSFER_IN', 'TRANSFER_OUT', 'CARD_TOPUP', 'CARD_TRANSFER', 'CRYPTO_BUY', 'CRYPTO_SELL'] })
   type: string;
 
   @Prop({ required: true })
@@ -26,6 +26,12 @@ export class Transaction extends Document {
 
   @Prop()
   originalCurrency?: string;
+
+  @Prop()
+  targetAmount?: number;
+
+  @Prop()
+  targetCurrency?: string;
 
   @Prop()
   exchangeRate?: number;

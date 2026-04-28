@@ -18,6 +18,9 @@ export class User extends Document {
   @Prop({ default: 0 })
   balance: number;
 
+  @Prop({ default: 0 })
+  cryptoBalance: number;
+
   @Prop({ default: 'USD' })
   currency: string;
 

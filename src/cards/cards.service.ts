@@ -125,7 +125,7 @@ export class CardsService {
     const user = await this.usersService.findById(userId);
     if (!user) throw new NotFoundException('Utilisateur introuvable');
     if ((user.balance || 0) < amount) {
-      throw new BadRequestException(`Solde insuffisant (B$ ${user.balance?.toFixed(2)})`);
+      throw new BadRequestException(`Solde insuffisant.`);
     }
 
     const card = await this.cardModel.findOne({ _id: cardId, userId }).exec();
@@ -134,7 +134,7 @@ export class CardsService {
 
     // Vérifier le plafond de la carte
     if (card.cardBalance + amount > card.limitValue) {
-      throw new BadRequestException(`Plafond de la carte atteint. Capacité restante: B$ ${(card.limitValue - card.cardBalance).toFixed(2)}`);
+      throw new BadRequestException(`Plafond de la carte atteint.`);
     }
 
     // Create transaction record
@@ -168,11 +168,11 @@ export class CardsService {
     
     // Vérifier le plafond de la carte de destination
     if (to.cardBalance + amount > to.limitValue) {
-      throw new BadRequestException(`Plafond de la carte de destination atteint (${to.name}). Capacité restante: B$ ${(to.limitValue - to.cardBalance).toFixed(2)}`);
+      throw new BadRequestException(`Plafond de la carte de destination atteint (${to.name}).`);
     }
 
     if ((from.cardBalance || 0) < amount) {
-      throw new BadRequestException(`Solde insuffisant sur cette carte (B$ ${from.cardBalance?.toFixed(2)})`);
+      throw new BadRequestException(`Solde insuffisant sur cette carte.`);
     }
 
     from.cardBalance = (from.cardBalance || 0) - amount;
