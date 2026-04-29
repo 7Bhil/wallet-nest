@@ -37,7 +37,6 @@ export class CardsService {
     const templates = {
       'STANDARD': {
         name: 'Everyday Virtual',
-        limit: '$4,850 / $5,000',
         limitValue: 5000,
         interestRate: 5,
         color: 'from-white to-slate-50',
@@ -47,7 +46,6 @@ export class CardsService {
       },
       'PREMIUM': {
         name: 'Sky Digital',
-        limit: '$15,000 / $25,000',
         limitValue: 25000,
         interestRate: 12,
         color: 'from-blue-600 to-blue-900',
@@ -57,7 +55,6 @@ export class CardsService {
       },
       'VIP MEMBER': {
         name: 'The Fluid Black',
-        limit: '$100,000 / Unlimited',
         limitValue: 100000,
         interestRate: 18,
         color: 'from-slate-800 to-slate-950',
@@ -70,12 +67,15 @@ export class CardsService {
   }
 
   async create(userId: string, createCardDto: CreateCardDto): Promise<Card> {
+    const user = await this.usersService.findById(userId);
+    if (!user) throw new NotFoundException('Utilisateur introuvable');
+    
     const template = this.getCardTemplate(createCardDto.type);
     
     // Check if user already has 3 cards
     const userCards = await this.cardModel.find({ userId }).exec();
     if (userCards.length >= 3) {
-      throw new BadRequestException('Card limit reached (3 max)');
+      throw new BadRequestException('Limite de cartes atteinte (3 max)');
     }
 
     const createdCard = new this.cardModel({
@@ -85,6 +85,7 @@ export class CardsService {
       exp: this.generateExp(),
       cvv: this.generateCVV(),
       status: 'ACTIVE',
+      limit: `0 / ${template.limitValue} ${user.currency || 'USD'}`,
       ...template
     });
     
@@ -151,6 +152,9 @@ export class CardsService {
     await this.usersService.updateBalance(userId, -amount);
     card.cardBalance = (card.cardBalance || 0) + amount;
     
+    // Update limit string to reflect usage
+    card.limit = `${card.cardBalance.toFixed(0)} / ${card.limitValue} ${user.currency || 'USD'}`;
+    
     await transaction.save();
     return card.save();
   }
@@ -177,6 +181,12 @@ export class CardsService {
 
     from.cardBalance = (from.cardBalance || 0) - amount;
     to.cardBalance   = (to.cardBalance   || 0) + amount;
+
+    // Update limit strings
+    const user = await this.usersService.findById(userId);
+    const currency = user?.currency || 'USD';
+    from.limit = `${from.cardBalance.toFixed(0)} / ${from.limitValue} ${currency}`;
+    to.limit = `${to.cardBalance.toFixed(0)} / ${to.limitValue} ${currency}`;
 
     const transaction = new this.transactionModel({
       userId: new Types.ObjectId(userId),
