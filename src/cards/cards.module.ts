@@ -5,6 +5,7 @@ import { CardsController } from './cards.controller';
 import { Card, CardSchema } from './schemas/card.schema';
 
 import { UsersModule } from '../users/users.module';
+import { CurrencyModule } from '../currency/currency.module';
 import { Transaction, TransactionSchema } from '../transactions/transaction.schema';
 
 @Module({
