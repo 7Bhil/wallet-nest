@@ -115,5 +115,30 @@ export class CurrencyService implements OnModuleInit {
     return this.toBsdRates[currency.toUpperCase()] || (1 - this.SPREAD_COMMISSION);
   }
 
+  /**
+   * Arrondit un montant à un "chiffre beau/propre" selon la devise
+   * Utile pour les plafonds de cartes, objectifs, etc.
+   */
+  roundToPretty(amount: number, currency: string): number {
+    const curr = currency.toUpperCase();
+    
+    if (curr === 'XOF') {
+      if (amount < 100000) return Math.round(amount / 10000) * 10000;
+      if (amount < 1000000) return Math.round(amount / 50000) * 50000;
+      if (amount < 20000000) return Math.round(amount / 1000000) * 1000000;
+      return Math.round(amount / 5000000) * 5000000;
+    }
+
+    if (['USD', 'EUR', 'GBP', 'CHF', 'CAD', 'AUD'].includes(curr)) {
+      if (amount < 1000) return Math.round(amount / 100) * 100;
+      if (amount < 10000) return Math.round(amount / 500) * 500;
+      return Math.round(amount / 1000) * 1000;
+    }
+
+    // Default: Round to 2 significant digits
+    const magnitude = Math.pow(10, Math.floor(Math.log10(amount)) - 1);
+    return Math.round(amount / magnitude) * magnitude;
+  }
+
   private rawRates: { [key: string]: number } = { USD: 1 };
 }

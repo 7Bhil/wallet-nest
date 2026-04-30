@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { Card } from './schemas/card.schema';
 import { Transaction } from '../transactions/transaction.schema';
 import { UsersService } from '../users/users.service';
+import { CurrencyService } from '../currency/currency.service';
 import { CreateCardDto } from './dto/create-card.dto';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class CardsService {
     @InjectModel(Card.name) private cardModel: Model<Card>,
     @InjectModel(Transaction.name) private transactionModel: Model<Transaction>,
     private usersService: UsersService,
+    private currencyService: CurrencyService,
   ) {}
 
   private generateCardNumber(): string {
@@ -37,7 +39,7 @@ export class CardsService {
     const templates = {
       'STANDARD': {
         name: 'Everyday Virtual',
-        limitValue: 5000,
+        limitBSD: 5000,
         interestRate: 5,
         color: 'from-white to-slate-50',
         text: 'text-slate-900',
@@ -46,7 +48,7 @@ export class CardsService {
       },
       'PREMIUM': {
         name: 'Sky Digital',
-        limitValue: 25000,
+        limitBSD: 25000,
         interestRate: 12,
         color: 'from-blue-600 to-blue-900',
         text: 'text-white',
@@ -55,7 +57,7 @@ export class CardsService {
       },
       'VIP MEMBER': {
         name: 'The Fluid Black',
-        limitValue: 100000,
+        limitBSD: 100000,
         interestRate: 18,
         color: 'from-slate-800 to-slate-950',
         text: 'text-white',
@@ -78,6 +80,10 @@ export class CardsService {
       throw new BadRequestException('Limite de cartes atteinte (3 max)');
     }
 
+    const currency = user.currency || 'USD';
+    const rawLimit = await this.currencyService.convertFromBSD(template.limitBSD, currency);
+    const prettyLimit = this.currencyService.roundToPretty(rawLimit, currency);
+
     const createdCard = new this.cardModel({
       userId,
       type: createCardDto.type,
@@ -85,7 +91,8 @@ export class CardsService {
       exp: this.generateExp(),
       cvv: this.generateCVV(),
       status: 'ACTIVE',
-      limit: `0 / ${template.limitValue} ${user.currency || 'USD'}`,
+      limitValue: prettyLimit,
+      limit: `0 / ${new Intl.NumberFormat('fr-FR').format(prettyLimit)} ${currency}`,
       ...template
     });
     
@@ -152,8 +159,10 @@ export class CardsService {
     await this.usersService.updateBalance(userId, -amount);
     card.cardBalance = (card.cardBalance || 0) + amount;
     
-    // Update limit string to reflect usage
-    card.limit = `${card.cardBalance.toFixed(0)} / ${card.limitValue} ${user.currency || 'USD'}`;
+    // Update limit string to reflect usage with pretty formatting
+    const formattedBalance = new Intl.NumberFormat('fr-FR').format(card.cardBalance);
+    const formattedLimit = new Intl.NumberFormat('fr-FR').format(card.limitValue);
+    card.limit = `${formattedBalance} / ${formattedLimit} ${user.currency || 'USD'}`;
     
     await transaction.save();
     return card.save();
@@ -182,11 +191,13 @@ export class CardsService {
     from.cardBalance = (from.cardBalance || 0) - amount;
     to.cardBalance   = (to.cardBalance   || 0) + amount;
 
-    // Update limit strings
+    // Update limit strings with pretty formatting
     const user = await this.usersService.findById(userId);
     const currency = user?.currency || 'USD';
-    from.limit = `${from.cardBalance.toFixed(0)} / ${from.limitValue} ${currency}`;
-    to.limit = `${to.cardBalance.toFixed(0)} / ${to.limitValue} ${currency}`;
+    const nf = new Intl.NumberFormat('fr-FR');
+    
+    from.limit = `${nf.format(from.cardBalance)} / ${nf.format(from.limitValue)} ${currency}`;
+    to.limit = `${nf.format(to.cardBalance)} / ${nf.format(to.limitValue)} ${currency}`;
 
     const transaction = new this.transactionModel({
       userId: new Types.ObjectId(userId),

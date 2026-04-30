@@ -14,6 +14,7 @@ import { Transaction, TransactionSchema } from '../transactions/transaction.sche
       { name: Transaction.name, schema: TransactionSchema }
     ]),
     UsersModule,
+    CurrencyModule,
   ],
   controllers: [CardsController],
   providers: [CardsService],
