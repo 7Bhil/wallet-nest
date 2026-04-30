@@ -39,7 +39,7 @@ export class CardsService {
     const templates = {
       'STANDARD': {
         name: 'Everyday Virtual',
-        limitBSD: 5000,
+        limitBSD: 200, // Result: ~100k XOF
         interestRate: 5,
         color: 'from-white to-slate-50',
         text: 'text-slate-900',
@@ -48,7 +48,7 @@ export class CardsService {
       },
       'PREMIUM': {
         name: 'Sky Digital',
-        limitBSD: 25000,
+        limitBSD: 1700, // Result: ~1M XOF
         interestRate: 12,
         color: 'from-blue-600 to-blue-900',
         text: 'text-white',
@@ -57,7 +57,7 @@ export class CardsService {
       },
       'VIP MEMBER': {
         name: 'The Fluid Black',
-        limitBSD: 100000,
+        limitBSD: 50000, // Result: ~30M XOF
         interestRate: 18,
         color: 'from-slate-800 to-slate-950',
         text: 'text-white',

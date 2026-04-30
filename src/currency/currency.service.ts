@@ -123,10 +123,9 @@ export class CurrencyService implements OnModuleInit {
     const curr = currency.toUpperCase();
     
     if (curr === 'XOF') {
-      if (amount < 100000) return Math.round(amount / 10000) * 10000;
-      if (amount < 1000000) return Math.round(amount / 50000) * 50000;
-      if (amount < 20000000) return Math.round(amount / 1000000) * 1000000;
-      return Math.round(amount / 5000000) * 5000000;
+      if (amount < 200000) return Math.round(amount / 100000) * 100000; // Snap to 100k, 200k
+      if (amount < 2000000) return Math.round(amount / 1000000) * 1000000; // Snap to 1M, 2M
+      return Math.round(amount / 5000000) * 5000000; // Snap to 5M, 10M, 15M, ..., 30M
     }
 
     if (['USD', 'EUR', 'GBP', 'CHF', 'CAD', 'AUD'].includes(curr)) {
