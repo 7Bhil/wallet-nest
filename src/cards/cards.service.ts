@@ -33,8 +33,8 @@ export class CardsService implements OnModuleInit {
       const rawLimit = await this.currencyService.convertFromBSD(template.limitBSD, currency);
       const prettyLimit = this.currencyService.roundToPretty(rawLimit, currency);
 
-      // Mise à jour si le plafond est différent ou trop bas
-      if (card.limitValue !== prettyLimit || !card.name.includes(template.name)) {
+      // Mise à jour si le plafond est différent, le nom a changé, ou le taux a changé
+      if (card.limitValue !== prettyLimit || !card.name.includes(template.name) || card.interestRate !== template.interestRate) {
         await this.cardModel.updateOne(
           { _id: card._id },
           { 
@@ -74,7 +74,7 @@ export class CardsService implements OnModuleInit {
       'STANDARD': {
         name: 'Everyday Blue',
         limitBSD: 200, // Result: ~100k XOF
-        interestRate: 5,
+        interestRate: 0.5,
         color: 'card-premium-blue',
         text: 'text-white',
         border: '',
@@ -83,7 +83,7 @@ export class CardsService implements OnModuleInit {
       'PREMIUM': {
         name: 'Gold Horizon',
         limitBSD: 1700, // Result: ~1M XOF
-        interestRate: 12,
+        interestRate: 1,
         color: 'card-lustrous-gold',
         text: 'text-amber-950',
         border: '',
@@ -92,7 +92,7 @@ export class CardsService implements OnModuleInit {
       'VIP MEMBER': {
         name: 'Obsidian Black',
         limitBSD: 50000, // Result: ~30M XOF
-        interestRate: 18,
+        interestRate: 1.5,
         color: 'card-glossy-black',
         text: 'text-white',
         border: '',

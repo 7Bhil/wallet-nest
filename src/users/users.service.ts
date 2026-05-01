@@ -3,13 +3,25 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from './user.schema';
 import { SignupDto } from '../auth/dto/signup.dto';
+import { CurrencyService } from '../currency/currency.service';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
+  constructor(
+    @InjectModel(User.name) private userModel: Model<User>,
+    private currencyService: CurrencyService
+  ) {}
 
   async create(signupDto: SignupDto): Promise<User> {
-    const createdUser = new this.userModel(signupDto);
+    // Tous les utilisateurs reçoivent l'équivalent de 1 B$ dans leur coffre fort à la création
+    const currency = signupDto.currency || 'USD';
+    const initialBalance = await this.currencyService.convertExact(1, 'USD', currency);
+
+    const createdUser = new this.userModel({
+      ...signupDto,
+      currency: currency,
+      balance: parseFloat(initialBalance.toFixed(2))
+    });
     return createdUser.save();
   }
 
@@ -30,6 +42,16 @@ export class UsersService {
   }
 
   async updateProfile(id: string, data: Partial<User>): Promise<User | null> {
+    const user = await this.userModel.findById(id).exec();
+    if (!user) return null;
+
+    // S'il change sa devise locale, on doit convertir son argent réel existant
+    // sans appliquer de commission (spread) car ce n'est pas un transfert d'une carte à l'autre
+    if (data.currency && data.currency !== user.currency) {
+      const exactConverted = await this.currencyService.convertExact(user.balance, user.currency, data.currency);
+      data.balance = parseFloat(exactConverted.toFixed(2));
+    }
+
     return this.userModel.findByIdAndUpdate(
       id,
       { $set: data },

@@ -13,4 +13,8 @@ export class SignupDto {
   @IsNotEmpty({ message: 'Le mot de passe est requis' })
   @MinLength(6, { message: 'Le mot de passe doit faire au moins 6 caractères' })
   password: string;
+
+  @IsString()
+  @IsNotEmpty()
+  currency?: string;
 }

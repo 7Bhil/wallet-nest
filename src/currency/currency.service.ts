@@ -116,6 +116,21 @@ export class CurrencyService implements OnModuleInit {
   }
 
   /**
+   * Convertit un montant exact d'une devise à une autre (utilisé pour les MAJ de profil)
+   * Aucune commission de change n'est prelevée.
+   */
+  async convertExact(amount: number, from: string, to: string): Promise<number> {
+    await this.ensureFreshRates();
+    if (from === to) return amount;
+    
+    const rateFrom = this.rawRates[from.toUpperCase()] || 1;
+    const rateTo = this.rawRates[to.toUpperCase()] || 1;
+    
+    const amountInUsd = amount / rateFrom;
+    return amountInUsd * rateTo;
+  }
+
+  /**
    * Arrondit un montant à un "chiffre beau/propre" selon la devise
    * Utile pour les plafonds de cartes, objectifs, etc.
    */

@@ -24,9 +24,17 @@ export class AuthService {
       password: hashedPassword,
     });
 
+    const payload = { email: user.email, sub: user._id, role: user.role, fullName: user.fullName };
+    const access_token = this.jwtService.sign(payload);
+
     return {
       message: 'User created successfully',
-      userId: user._id,
+      access_token,
+      user: {
+        id: user._id,
+        email: user.email,
+        fullName: user.fullName,
+      },
     };
   }
 
