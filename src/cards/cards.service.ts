@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Card } from './schemas/card.schema';
@@ -8,13 +8,47 @@ import { CurrencyService } from '../currency/currency.service';
 import { CreateCardDto } from './dto/create-card.dto';
 
 @Injectable()
-export class CardsService {
+export class CardsService implements OnModuleInit {
   constructor(
     @InjectModel(Card.name) private cardModel: Model<Card>,
     @InjectModel(Transaction.name) private transactionModel: Model<Transaction>,
     private usersService: UsersService,
     private currencyService: CurrencyService,
   ) {}
+
+  async onModuleInit() {
+    // Synchronisation automatique des plafonds au démarrage pour corriger les anciennes données
+    setTimeout(() => this.syncAllCardLimits(), 5000);
+  }
+
+  async syncAllCardLimits() {
+    const cards = await this.cardModel.find().exec();
+    for (const card of cards) {
+      const user = await this.usersService.findById(card.userId);
+      if (!user) continue;
+
+      const template = this.getCardTemplate(card.type);
+      const currency = user.currency || 'USD';
+      
+      const rawLimit = await this.currencyService.convertFromBSD(template.limitBSD, currency);
+      const prettyLimit = this.currencyService.roundToPretty(rawLimit, currency);
+
+      // Mise à jour si le plafond est différent ou trop bas
+      if (card.limitValue !== prettyLimit || !card.name.includes(template.name)) {
+        await this.cardModel.updateOne(
+          { _id: card._id },
+          { 
+            limitValue: prettyLimit,
+            name: template.name,
+            interestRate: template.interestRate,
+            color: template.color,
+            text: template.text,
+            accent: template.accent
+          }
+        ).exec();
+      }
+    }
+  }
 
   private generateCardNumber(): string {
     let result = '';
@@ -38,28 +72,28 @@ export class CardsService {
   private getCardTemplate(type: string) {
     const templates = {
       'STANDARD': {
-        name: 'Everyday Virtual',
+        name: 'Everyday Blue',
         limitBSD: 200, // Result: ~100k XOF
         interestRate: 5,
-        color: 'from-white to-slate-50',
-        text: 'text-slate-900',
-        border: 'border-slate-100',
-        accent: 'slate',
-      },
-      'PREMIUM': {
-        name: 'Sky Digital',
-        limitBSD: 1700, // Result: ~1M XOF
-        interestRate: 12,
-        color: 'from-blue-600 to-blue-900',
+        color: 'card-premium-blue',
         text: 'text-white',
         border: '',
         accent: 'blue',
       },
+      'PREMIUM': {
+        name: 'Gold Horizon',
+        limitBSD: 1700, // Result: ~1M XOF
+        interestRate: 12,
+        color: 'card-lustrous-gold',
+        text: 'text-amber-950',
+        border: '',
+        accent: 'amber',
+      },
       'VIP MEMBER': {
-        name: 'The Fluid Black',
+        name: 'Obsidian Black',
         limitBSD: 50000, // Result: ~30M XOF
         interestRate: 18,
-        color: 'from-slate-800 to-slate-950',
+        color: 'card-glossy-black',
         text: 'text-white',
         border: '',
         accent: 'emerald',

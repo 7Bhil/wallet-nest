@@ -1,4 +1,7 @@
+import { IsNotEmpty, IsEnum } from 'class-validator';
+
 export class CreateCardDto {
-  // 'STANDARD' | 'PREMIUM' | 'VIP MEMBER'
+  @IsNotEmpty({ message: 'Le type de carte est requis' })
+  @IsEnum(['STANDARD', 'PREMIUM', 'VIP MEMBER'], { message: 'Type de carte invalide' })
   type: string;
 }

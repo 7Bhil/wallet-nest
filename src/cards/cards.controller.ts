@@ -1,6 +1,8 @@
 import { Controller, Get, Post, Body, Param, UseGuards, Request, Patch, Delete } from '@nestjs/common';
 import { CardsService } from './cards.service';
 import { CreateCardDto } from './dto/create-card.dto';
+import { TopupCardDto } from './dto/topup-card.dto';
+import { CardTransferDto } from './dto/card-transfer.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('cards')
@@ -32,17 +34,22 @@ export class CardsController {
   topupCard(
     @Request() req: any,
     @Param('id') id: string,
-    @Body() body: { amount: number }
+    @Body() topupCardDto: TopupCardDto
   ) {
-    return this.cardsService.topupCard(req.user.id, id, body.amount);
+    return this.cardsService.topupCard(req.user.id, id, topupCardDto.amount);
   }
 
   @Post('transfer')
   cardTransfer(
     @Request() req: any,
-    @Body() body: { fromCardId: string; toCardId: string; amount: number }
+    @Body() cardTransferDto: CardTransferDto
   ) {
-    return this.cardsService.cardTransfer(req.user.id, body.fromCardId, body.toCardId, body.amount);
+    return this.cardsService.cardTransfer(
+      req.user.id, 
+      cardTransferDto.fromCardId, 
+      cardTransferDto.toCardId, 
+      cardTransferDto.amount
+    );
   }
 
   @Delete(':id')
