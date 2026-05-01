@@ -5,6 +5,7 @@ import { TransactionsService } from './transactions.service';
 import { TransactionsController } from './transactions.controller';
 import { UsersModule } from '../users/users.module';
 import { Card, CardSchema } from '../cards/schemas/card.schema';
+import { AdminModule } from '../admin/admin.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { Card, CardSchema } from '../cards/schemas/card.schema';
       { name: Card.name, schema: CardSchema },
     ]),
     UsersModule,
+    AdminModule,
   ],
   controllers: [TransactionsController],
   providers: [TransactionsService],

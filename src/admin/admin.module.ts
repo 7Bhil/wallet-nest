@@ -16,5 +16,6 @@ import { Card, CardSchema } from '../cards/schemas/card.schema';
   ],
   controllers: [AdminController],
   providers: [AdminService],
+  exports: [AdminService],
 })
 export class AdminModule {}

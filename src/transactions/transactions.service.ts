@@ -6,6 +6,7 @@ import { Card } from '../cards/schemas/card.schema';
 import { UsersService } from '../users/users.service';
 import { CurrencyService } from '../currency/currency.service';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
+import { AdminService } from '../admin/admin.service';
 
 @Injectable()
 export class TransactionsService {
@@ -15,6 +16,7 @@ export class TransactionsService {
     private usersService: UsersService,
     private currencyService: CurrencyService,
     private notificationsGateway: NotificationsGateway,
+    private adminService: AdminService,
   ) {}
 
   async recharge(userId: string, amount: number, currency: string, description: string): Promise<Transaction> {
@@ -90,6 +92,14 @@ export class TransactionsService {
     // Conversion directe Fiat-to-Fiat
     const targetAmount = await this.currencyService.convertFiat(amount, senderCurrency, recipientCurrency);
     const rate = await this.currencyService.getFiatRate(senderCurrency, recipientCurrency);
+
+    // Calculer la marge/commission récupérée et la renvoyer vers l'Admin de la plateforme
+    const exactAmount = await this.currencyService.convertExact(amount, senderCurrency, recipientCurrency);
+    const spreadFee = Math.max(0, exactAmount - targetAmount);
+
+    if (spreadFee > 0) {
+      await this.adminService.collectSystemFee(spreadFee, recipientCurrency, `Commission Transfert de ${sender.fullName}`);
+    }
 
     const desc = note || `Transfert à ${recipient.fullName}`;
     const descRecipient = note || `Reçu de ${sender.fullName}`;
