@@ -13,21 +13,28 @@ export class SeedService implements OnModuleInit {
   }
 
   async seedAdmin() {
-    const adminEmail = 'admin@gmail.com';
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+
+    if (!adminEmail || !adminPassword) {
+      console.log('ℹ️ Seeding Admin ignoré (ADMIN_EMAIL ou ADMIN_PASSWORD non définis)');
+      return;
+    }
+
     const existingAdmin = await this.userModel.findOne({ email: adminEmail }).exec();
 
     if (!existingAdmin) {
-      const hashedPassword = await bcrypt.hash('admin123', 10);
+      const hashedPassword = await bcrypt.hash(adminPassword, 10);
       const admin = new this.userModel({
-        fullName: 'Administrateur Wallet',
+        fullName: 'Administrateur Plateforme',
         email: adminEmail,
         password: hashedPassword,
         role: 'ADMIN',
-        balance: 1000000, // Un peu d'argent pour l'admin par défaut
+        balance: 1000000,
         currency: 'USD',
       });
       await admin.save();
-      console.log('✅ Compte Admin créé automatiquement : admin@gmail.com / admin123');
+      console.log(`✅ Compte Admin créé automatiquement : ${adminEmail}`);
     }
   }
 }

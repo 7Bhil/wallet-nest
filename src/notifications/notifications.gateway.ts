@@ -26,7 +26,11 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
     if (!token) return client.disconnect();
 
     try {
-      const decoded: any = jwt.verify(token, process.env.JWT_SECRET || 'wallet-super-secret-key-2026-v1');
+      const secret = process.env.JWT_SECRET;
+      if (!secret || secret === 'wallet-super-secret-key-2026-v1') {
+        throw new Error('JWT_SECRET non configuré ou non sécurisé');
+      }
+      const decoded: any = jwt.verify(token, secret);
       const userId = decoded.sub;
 
       if (!this.userSockets.has(userId)) {
