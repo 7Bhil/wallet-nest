@@ -41,6 +41,13 @@ export class TransactionsService {
       exchangeRate: rate,
     };
 
+    // IMPORTANT: Ceci est une méthode de test (MOCK).
+    // En production, ce endpoint est une faille critique si aucun webhook de paiement ne sécurise l'appel.
+    // L'attaquant peut envoyer n'importe quel montant sans payer.
+    if (process.env.NODE_ENV === 'production') {
+      throw new BadRequestException('Topup désactivé en production - Intégration de paiement absente.');
+    }
+
     if (user.defaultCardId) {
       const card = await this.cardModel.findById(user.defaultCardId);
       if (card && (card.cardBalance + amountInUserCurrency) <= card.limitValue) {
@@ -76,9 +83,7 @@ export class TransactionsService {
 
     const sender = await this.usersService.findById(senderId);
     if (!sender) throw new NotFoundException('Expéditeur introuvable');
-    if ((sender.balance || 0) < amount) {
-      throw new BadRequestException(`Solde insuffisant. Vous avez ${sender.balance?.toFixed(2)} ${sender.currency}`);
-    }
+    // Le solde sera vérifié atomiquement plus tard, mais on garde la vérification rapide initiale
 
     const recipient = await this.usersService.findByEmail(recipientEmail);
     if (!recipient) throw new NotFoundException(`Aucun compte trouvé pour ${recipientEmail}`);
@@ -104,8 +109,11 @@ export class TransactionsService {
     const desc = note || `Transfert à ${recipient.fullName}`;
     const descRecipient = note || `Reçu de ${sender.fullName}`;
 
-    // 1. Débiter l'expéditeur
-    await this.usersService.updateBalance(senderId, -amount);
+    // 1. Débiter l'expéditeur de manière atomique (Empêche la Race Condition)
+    const updatedSender = await this.usersService.deductBalanceSafe(senderId, amount);
+    if (!updatedSender) {
+      throw new BadRequestException('Solde insuffisant ou erreur de transaction simultanée');
+    }
 
     // 2. Créditer le destinataire (avec conversion)
     const creditData: any = {

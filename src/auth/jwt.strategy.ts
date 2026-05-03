@@ -10,10 +10,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private usersService: UsersService,
     private configService: ConfigService,
   ) {
+    const secret = configService.get<string>('JWT_SECRET');
+    if (!secret || secret === 'generer-une-cle-secrete-tres-longue-en-production') {
+      throw new Error('JWT_SECRET est introuvable ou non sécurisé dans les variables d\'environnement');
+    }
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET') || 'wallet-super-secret-key-2026-v1',
+      secretOrKey: secret,
     });
   }
 

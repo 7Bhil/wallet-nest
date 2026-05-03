@@ -41,6 +41,14 @@ export class UsersService {
     ).exec();
   }
 
+  async deductBalanceSafe(id: string, amount: number): Promise<User | null> {
+    return this.userModel.findOneAndUpdate(
+      { _id: id, balance: { $gte: amount } },
+      { $inc: { balance: -amount } },
+      { new: true }
+    ).exec();
+  }
+
   async updateProfile(id: string, data: Partial<User>): Promise<User | null> {
     const user = await this.userModel.findById(id).exec();
     if (!user) return null;
