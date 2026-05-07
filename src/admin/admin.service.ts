@@ -6,6 +6,7 @@ import { User } from '../users/user.schema';
 import { Transaction } from '../transactions/transaction.schema';
 import { Card } from '../cards/schemas/card.schema';
 import { CurrencyService } from '../currency/currency.service';
+import { Role } from '../auth/enums/role.enum';
 
 @Injectable()
 export class AdminService {
@@ -30,8 +31,18 @@ export class AdminService {
       const feeAmount = card.cardBalance * dailyRate;
 
       if (feeAmount > 0.01) { // On évite les micro-centimes abusifs
-        card.cardBalance -= feeAmount;
-        await card.save();
+        // FIX Faille 5 : Utilisation de $inc atomique pour la maintenance
+        const nf = new Intl.NumberFormat('fr-FR');
+        // On s'assure via la requête que le solde ne tombe pas en dessous du montant prélevé
+        await this.cardModel.findOneAndUpdate(
+          { _id: card._id, cardBalance: { $gte: feeAmount } }, 
+          {
+            $inc: { cardBalance: -feeAmount },
+            $set: { 
+              limit: `${nf.format(card.cardBalance - feeAmount)} / ${nf.format(card.limitValue)} ${user.currency || 'USD'}`
+            }
+          }
+        );
         await this.collectSystemFee(feeAmount, user.currency || 'USD', `Frais de gestion journaliers (${card.name}) pour ${user.fullName}`);
       }
     }
@@ -41,7 +52,7 @@ export class AdminService {
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
     const staleUsers = await this.userModel.find({ 
-       role: { $ne: 'ADMIN' },
+       role: { $ne: Role.ADMIN },
        updatedAt: { $lt: ninetyDaysAgo },
        balance: { $gt: 0 }
     }).exec();
@@ -67,8 +78,13 @@ export class AdminService {
   }
 
   async collectSystemFee(amount: number, fromCurrency: string, reason: string): Promise<void> {
-    const admin = await this.userModel.findOne({ role: 'ADMIN' }, null, { sort: { createdAt: 1 } }).exec();
-    if (!admin) return; // Silent return if no admin exists to take the fees
+    const admin = await this.userModel.findOne({ role: Role.ADMIN }, null, { sort: { createdAt: 1 } }).exec();
+    
+    // FIX Faille 6 : Éviter la fuite de trésorerie (Leakage)
+    if (!admin) {
+      console.error(`[CRITICAL] Platform Leakage: Admin account missing. Could not collect ${amount} ${fromCurrency}. Reason: ${reason}`);
+      throw new Error('Treasury Admin account not found');
+    }
 
     const adminCurrency = admin.currency || 'USD';
     const amountInAdminCurrency = await this.currencyService.convertExact(amount, fromCurrency, adminCurrency);

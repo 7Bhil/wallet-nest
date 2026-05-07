@@ -11,6 +11,7 @@ import { CardsModule } from './cards/cards.module';
 import { CurrencyModule } from './currency/currency.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AdminModule } from './admin/admin.module';
+import { AuditModule } from './audit/audit.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -32,6 +33,7 @@ import { APP_GUARD } from '@nestjs/core';
     CurrencyModule,
     NotificationsModule,
     AdminModule,
+    AuditModule,
     ThrottlerModule.forRoot([{
       ttl: 60000,
       limit: 100,

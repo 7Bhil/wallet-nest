@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectModel, InjectConnection } from '@nestjs/mongoose';
+import { Model, Types, Connection } from 'mongoose';
 import { Card } from './schemas/card.schema';
 import { Transaction } from '../transactions/transaction.schema';
 import { UsersService } from '../users/users.service';
@@ -12,12 +12,12 @@ export class CardsService implements OnModuleInit {
   constructor(
     @InjectModel(Card.name) private cardModel: Model<Card>,
     @InjectModel(Transaction.name) private transactionModel: Model<Transaction>,
+    @InjectConnection() private readonly connection: Connection,
     private usersService: UsersService,
     private currencyService: CurrencyService,
   ) {}
 
   async onModuleInit() {
-    // Synchronisation automatique des plafonds au démarrage pour corriger les anciennes données
     setTimeout(() => this.syncAllCardLimits(), 5000);
   }
 
@@ -33,7 +33,6 @@ export class CardsService implements OnModuleInit {
       const rawLimit = await this.currencyService.convertFromBSD(template.limitBSD, currency);
       const prettyLimit = this.currencyService.roundToPretty(rawLimit, currency);
 
-      // Mise à jour si le plafond est différent, le nom a changé, ou le taux a changé
       if (card.limitValue !== prettyLimit || !card.name.includes(template.name) || card.interestRate !== template.interestRate) {
         await this.cardModel.updateOne(
           { _id: card._id },
@@ -73,30 +72,33 @@ export class CardsService implements OnModuleInit {
     const templates = {
       'STANDARD': {
         name: 'Everyday Blue',
-        limitBSD: 200, // Result: ~100k XOF
-        interestRate: 0.5,
+        limitBSD: 200, 
+        interestRate: 1,
+        priceBSD: 200,
         color: 'card-premium-blue',
         text: 'text-white',
         border: '',
         accent: 'blue',
       },
-      'PREMIUM': {
-        name: 'Gold Horizon',
-        limitBSD: 1700, // Result: ~1M XOF
-        interestRate: 1,
-        color: 'card-lustrous-gold',
-        text: 'text-amber-950',
-        border: '',
-        accent: 'amber',
-      },
       'VIP MEMBER': {
         name: 'Obsidian Black',
-        limitBSD: 50000, // Result: ~30M XOF
-        interestRate: 1.5,
+        limitBSD: 50000, 
+        interestRate: 0.5,
+        priceBSD: 300,
         color: 'card-glossy-black',
         text: 'text-white',
         border: '',
         accent: 'emerald',
+      },
+      'PREMIUM': {
+        name: 'Gold Horizon',
+        limitBSD: 1700, 
+        interestRate: 0.3,
+        priceBSD: 500,
+        color: 'card-lustrous-gold',
+        text: 'text-amber-950',
+        border: '',
+        accent: 'amber',
       }
     };
     return templates[type as keyof typeof templates] || templates['STANDARD'];
@@ -108,7 +110,6 @@ export class CardsService implements OnModuleInit {
     
     const template = this.getCardTemplate(createCardDto.type);
     
-    // Check if user already has 3 cards
     const userCards = await this.cardModel.find({ userId }).exec();
     if (userCards.length >= 3) {
       throw new BadRequestException('Limite de cartes atteinte (3 max)');
@@ -118,19 +119,49 @@ export class CardsService implements OnModuleInit {
     const rawLimit = await this.currencyService.convertFromBSD(template.limitBSD, currency);
     const prettyLimit = this.currencyService.roundToPretty(rawLimit, currency);
 
-    const createdCard = new this.cardModel({
-      userId,
-      type: createCardDto.type,
-      number: this.generateCardNumber(),
-      exp: this.generateExp(),
-      cvv: this.generateCVV(),
-      status: 'ACTIVE',
-      limitValue: prettyLimit,
-      limit: `0 / ${new Intl.NumberFormat('fr-FR').format(prettyLimit)} ${currency}`,
-      ...template
-    });
-    
-    return createdCard.save();
+    const price = await this.currencyService.convertFromBSD(template.priceBSD, currency);
+
+    const session = await this.connection.startSession();
+    session.startTransaction();
+
+    try {
+      const deductSuccess = await this.usersService.deductBalanceSafe(userId, price, session);
+      if (!deductSuccess) {
+        throw new BadRequestException(`Solde insuffisant pour créer cette carte.`);
+      }
+
+      const createdCard = new this.cardModel({
+        userId,
+        type: createCardDto.type,
+        number: this.generateCardNumber(),
+        exp: this.generateExp(),
+        cvv: this.generateCVV(),
+        status: 'ACTIVE',
+        limitValue: prettyLimit,
+        limit: `0 / ${new Intl.NumberFormat('fr-FR').format(prettyLimit)} ${currency}`,
+        ...template
+      });
+      
+      const purchaseTxn = new this.transactionModel({
+        userId: new Types.ObjectId(userId),
+        type: 'PAYMENT',
+        amount: price,
+        description: `Achat Carte ${template.name}`,
+        status: 'SUCCESS',
+        category: 'Système',
+      });
+      
+      await purchaseTxn.save({ session });
+      const savedCard = await createdCard.save({ session });
+
+      await session.commitTransaction();
+      return savedCard;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
   }
 
   async findAllByUserId(userId: string): Promise<Card[]> {
@@ -139,70 +170,94 @@ export class CardsService implements OnModuleInit {
 
   async freezeCard(userId: string, cardId: string): Promise<Card> {
     const card = await this.cardModel.findOne({ _id: cardId, userId }).exec();
-    if (!card) {
-      throw new NotFoundException('Card not found');
-    }
+    if (!card) throw new NotFoundException('Card not found');
     card.status = card.status === 'ACTIVE' ? 'FROZEN' : 'ACTIVE';
     return card.save();
   }
 
   async remove(userId: string, cardId: string): Promise<void> {
     const card = await this.cardModel.findOne({ _id: cardId, userId }).exec();
-    if (!card) {
-      throw new NotFoundException('Carte introuvable');
-    }
+    if (!card) throw new NotFoundException('Carte introuvable');
 
-    // Si la carte avait un solde, on le rend au coffre-fort de l'utilisateur
-    if (card.cardBalance > 0) {
-      await this.usersService.updateBalance(userId, card.cardBalance);
+    const session = await this.connection.startSession();
+    session.startTransaction();
+
+    try {
+      if (card.cardBalance > 0) {
+        await this.usersService.updateBalance(userId, card.cardBalance, session);
+      }
+      
+      await this.cardModel.deleteOne({ _id: cardId }, { session }).exec();
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
     }
-    
-    await this.cardModel.deleteOne({ _id: cardId }).exec();
   }
 
-  /** Alimenter une carte depuis le solde principal (wallet → card) */
   async topupCard(userId: string, cardId: string, amount: number): Promise<Card> {
     if (amount <= 0) throw new BadRequestException('Montant invalide');
     
     const user = await this.usersService.findById(userId);
     if (!user) throw new NotFoundException('Utilisateur introuvable');
-    if ((user.balance || 0) < amount) {
-      throw new BadRequestException(`Solde insuffisant.`);
-    }
+    if ((user.balance || 0) < amount) throw new BadRequestException(`Solde insuffisant.`);
 
     const card = await this.cardModel.findOne({ _id: cardId, userId }).exec();
     if (!card) throw new NotFoundException('Carte introuvable');
-    if (card.status === 'FROZEN') throw new BadRequestException('Carte gelée');
+    if (card.status !== 'ACTIVE') throw new BadRequestException('Carte gelée ou inactive');
 
-    // Vérifier le plafond de la carte
     if (card.cardBalance + amount > card.limitValue) {
       throw new BadRequestException(`Plafond de la carte atteint.`);
     }
 
-    // Create transaction record
-    const transaction = new this.transactionModel({
-      userId: new Types.ObjectId(userId),
-      type: 'CARD_TOPUP',
-      amount,
-      description: `Alimentation carte ${card.name}`,
-      status: 'SUCCESS',
-      category: 'Carte',
-      toCardId: card._id,
-    });
+    const session = await this.connection.startSession();
+    session.startTransaction();
 
-    await this.usersService.updateBalance(userId, -amount);
-    card.cardBalance = (card.cardBalance || 0) + amount;
-    
-    // Update limit string to reflect usage with pretty formatting
-    const formattedBalance = new Intl.NumberFormat('fr-FR').format(card.cardBalance);
-    const formattedLimit = new Intl.NumberFormat('fr-FR').format(card.limitValue);
-    card.limit = `${formattedBalance} / ${formattedLimit} ${user.currency || 'USD'}`;
-    
-    await transaction.save();
-    return card.save();
+    try {
+      const deductSuccess = await this.usersService.deductBalanceSafe(userId, amount, session);
+      if (!deductSuccess) throw new BadRequestException('Solde insuffisant');
+
+      const updatedCard = await this.cardModel.findOneAndUpdate(
+        { 
+          _id: cardId, 
+          userId, 
+          status: 'ACTIVE',
+          cardBalance: { $lte: card.limitValue - amount } 
+        },
+        { 
+          $inc: { cardBalance: amount },
+          $set: { 
+            limit: `${new Intl.NumberFormat('fr-FR').format(card.cardBalance + amount)} / ${new Intl.NumberFormat('fr-FR').format(card.limitValue)} ${user.currency || 'USD'}` 
+          }
+        },
+        { new: true, session }
+      ).exec();
+
+      if (!updatedCard) throw new BadRequestException('Action impossible (Plafond/Status)');
+
+      const transaction = new this.transactionModel({
+        userId: new Types.ObjectId(userId),
+        type: 'CARD_TOPUP',
+        amount,
+        description: `Alimentation carte ${card.name}`,
+        status: 'SUCCESS',
+        category: 'Carte',
+        toCardId: card._id,
+      });
+
+      await transaction.save({ session });
+      await session.commitTransaction();
+      return updatedCard;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
   }
 
-  /** Transférer des B$ d'une carte à une autre (appartenant au même user) */
   async cardTransfer(userId: string, fromCardId: string, toCardId: string, amount: number): Promise<{ from: Card; to: Card }> {
     if (amount <= 0) throw new BadRequestException('Montant invalide');
     if (fromCardId === toCardId) throw new BadRequestException('Les deux cartes doivent être différentes');
@@ -211,46 +266,62 @@ export class CardsService implements OnModuleInit {
     const to   = await this.cardModel.findOne({ _id: toCardId,   userId }).exec();
 
     if (!from || !to) throw new NotFoundException('Carte(s) introuvable(s)');
-    if (from.status === 'FROZEN') throw new BadRequestException('La carte source est gelée');
+    if (from.status !== 'ACTIVE') throw new BadRequestException('La carte source est gelée');
+    if (to.status !== 'ACTIVE') throw new BadRequestException('La carte destination est inactive');
     
-    // Vérifier le plafond de la carte de destination
-    if (to.cardBalance + amount > to.limitValue) {
-      throw new BadRequestException(`Plafond de la carte de destination atteint (${to.name}).`);
+    if (to.cardBalance + amount > to.limitValue) throw new BadRequestException(`Plafond atteint.`);
+    if ((from.cardBalance || 0) < amount) throw new BadRequestException(`Solde insuffisant.`);
+
+    const session = await this.connection.startSession();
+    session.startTransaction();
+
+    try {
+      const nf = new Intl.NumberFormat('fr-FR');
+      const user = await this.usersService.findById(userId);
+      const currency = user?.currency || 'USD';
+
+      const fromUpdate = await this.cardModel.findOneAndUpdate(
+        { _id: fromCardId, userId, cardBalance: { $gte: amount } },
+        { 
+          $inc: { cardBalance: -amount },
+          $set: { limit: `${nf.format(from.cardBalance - amount)} / ${nf.format(from.limitValue)} ${currency}` }
+        },
+        { new: true, session }
+      ).exec();
+
+      const toUpdate = await this.cardModel.findOneAndUpdate(
+        { _id: toCardId, userId, cardBalance: { $lte: to.limitValue - amount } },
+        { 
+          $inc: { cardBalance: amount },
+          $set: { limit: `${nf.format(to.cardBalance + amount)} / ${nf.format(to.limitValue)} ${currency}` }
+        },
+        { new: true, session }
+      ).exec();
+
+      if (!fromUpdate || !toUpdate) throw new BadRequestException('Transfert interrompu (Solde/Plafond)');
+
+      const transaction = new this.transactionModel({
+        userId: new Types.ObjectId(userId),
+        type: 'CARD_TRANSFER',
+        amount,
+        description: `Transfert ${from.name} → ${to.name}`,
+        status: 'SUCCESS',
+        category: 'Carte',
+        fromCardId: from._id,
+        toCardId: to._id,
+      });
+
+      await transaction.save({ session });
+      await session.commitTransaction();
+      return { from: fromUpdate, to: toUpdate };
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
     }
-
-    if ((from.cardBalance || 0) < amount) {
-      throw new BadRequestException(`Solde insuffisant sur cette carte.`);
-    }
-
-    from.cardBalance = (from.cardBalance || 0) - amount;
-    to.cardBalance   = (to.cardBalance   || 0) + amount;
-
-    // Update limit strings with pretty formatting
-    const user = await this.usersService.findById(userId);
-    const currency = user?.currency || 'USD';
-    const nf = new Intl.NumberFormat('fr-FR');
-    
-    from.limit = `${nf.format(from.cardBalance)} / ${nf.format(from.limitValue)} ${currency}`;
-    to.limit = `${nf.format(to.cardBalance)} / ${nf.format(to.limitValue)} ${currency}`;
-
-    const transaction = new this.transactionModel({
-      userId: new Types.ObjectId(userId),
-      type: 'CARD_TRANSFER',
-      amount,
-      description: `Transfert ${from.name} → ${to.name}`,
-      status: 'SUCCESS',
-      category: 'Carte',
-      fromCardId: from._id,
-      toCardId: to._id,
-    });
-
-    await transaction.save();
-    await from.save();
-    await to.save();
-    return { from, to };
   }
 
-  /** Définir une carte comme carte de réception par défaut */
   async setDefault(userId: string, cardId: string): Promise<void> {
     const card = await this.cardModel.findOne({ _id: cardId, userId }).exec();
     if (!card) throw new NotFoundException('Carte introuvable');

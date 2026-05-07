@@ -93,8 +93,12 @@ export class CurrencyService implements OnModuleInit {
     // 2. De USD -> 'to' (réel)
     // 3. Appliquer le SPREAD une seule fois sur le total
     
-    const rateFrom = this.rawRates[from.toUpperCase()] || 1;
-    const rateTo = this.rawRates[to.toUpperCase()] || 1;
+    const rateFrom = this.rawRates[from.toUpperCase()];
+    const rateTo = this.rawRates[to.toUpperCase()];
+    
+    if (!rateFrom || !rateTo) {
+      throw new Error(`Taux de change introuvable pour ${!rateFrom ? from : to}`);
+    }
     
     const amountInUsd = amount / rateFrom;
     const finalAmount = amountInUsd * rateTo * (1 - this.SPREAD_COMMISSION);
@@ -123,8 +127,12 @@ export class CurrencyService implements OnModuleInit {
     await this.ensureFreshRates();
     if (from === to) return amount;
     
-    const rateFrom = this.rawRates[from.toUpperCase()] || 1;
-    const rateTo = this.rawRates[to.toUpperCase()] || 1;
+    const rateFrom = this.rawRates[from.toUpperCase()];
+    const rateTo = this.rawRates[to.toUpperCase()];
+    
+    if (!rateFrom || !rateTo) {
+      throw new Error(`Conversion exacte impossible : devise ${!rateFrom ? from : to} inconnue.`);
+    }
     
     const amountInUsd = amount / rateFrom;
     return amountInUsd * rateTo;
