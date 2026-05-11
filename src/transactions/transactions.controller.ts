@@ -26,6 +26,19 @@ export class TransactionsController {
     );
   }
 
+  @Post('recharge/verify')
+  async verifyKkiapay(
+    @Request() req: any,
+    @Body() body: { transactionId: string; amount: number; currency: string },
+  ) {
+    return this.transactionsService.verifyKkiapay(
+      req.user.id,
+      body.transactionId,
+      body.amount,
+      body.currency,
+    );
+  }
+
   @Post('transfer')
   async transfer(@Request() req: any, @Body() transferDto: TransferDto) {
     return this.transactionsService.transfer(

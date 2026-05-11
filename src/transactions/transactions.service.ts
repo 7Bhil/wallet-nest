@@ -11,6 +11,7 @@ import { UsersService } from '../users/users.service';
 import { CurrencyService } from '../currency/currency.service';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
 import { AdminService } from '../admin/admin.service';
+import axios from 'axios';
 
 @Injectable()
 export class TransactionsService {
@@ -29,6 +30,7 @@ export class TransactionsService {
     amount: number,
     currency: string,
     description: string,
+    isVerified = false,
   ): Promise<Transaction> {
     const user = await this.usersService.findById(userId);
     if (!user) throw new NotFoundException('Utilisateur introuvable');
@@ -59,7 +61,7 @@ export class TransactionsService {
     };
 
     // FIX Faille 3 : Sécurisation du endpoint de recharge
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === 'production' && !isVerified) {
       throw new BadRequestException(
         'Topup désactivé en production - Requiert une passerelle de paiement réelle (Stripe/HMAC)',
       );
@@ -90,6 +92,45 @@ export class TransactionsService {
     });
 
     return transaction;
+  }
+
+  async verifyKkiapay(
+    userId: string,
+    transactionId: string,
+    amount: number,
+    currency: string,
+  ): Promise<Transaction> {
+    try {
+      const response = await axios.get(
+        `https://api.kkiapay.me/api/v0/verify/transaction/${transactionId}`,
+        {
+          headers: {
+            'x-api-key': process.env.KKIAPAY_SECRET_KEY,
+          },
+        },
+      );
+
+      if (response.data && response.data.status === 'SUCCESS') {
+        const verifiedAmount = response.data.amount;
+        // Kkiapay renvoie le montant en unité locale (XOF)
+        // On s'assure que le montant correspond à ce que l'user a déclaré
+        // Note: amount dans le body est ce que le front a envoyé.
+        // On utilise verifiedAmount pour être sûr.
+
+        return this.recharge(
+          userId,
+          verifiedAmount,
+          'XOF',
+          `Recharge via Kkiapay (ID: ${transactionId})`,
+          true,
+        );
+      } else {
+        throw new BadRequestException('La transaction Kkiapay a échoué ou est introuvable.');
+      }
+    } catch (error) {
+      console.error('Kkiapay Verification Error:', error.response?.data || error.message);
+      throw new BadRequestException('Impossible de vérifier la transaction auprès de Kkiapay.');
+    }
   }
 
   async transfer(
