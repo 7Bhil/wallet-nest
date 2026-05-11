@@ -92,7 +92,7 @@ export class CardsService implements OnModuleInit {
         name: 'Everyday Blue',
         limitBSD: 200,
         interestRate: 1,
-        priceBSD: 200,
+        priceXOF: 200,
         color: 'card-premium-blue',
         text: 'text-white',
         border: '',
@@ -102,7 +102,7 @@ export class CardsService implements OnModuleInit {
         name: 'Obsidian Black',
         limitBSD: 50000,
         interestRate: 0.5,
-        priceBSD: 300,
+        priceXOF: 300,
         color: 'card-glossy-black',
         text: 'text-white',
         border: '',
@@ -112,7 +112,7 @@ export class CardsService implements OnModuleInit {
         name: 'Gold Horizon',
         limitBSD: 1700,
         interestRate: 0.3,
-        priceBSD: 500,
+        priceXOF: 500,
         color: 'card-lustrous-gold',
         text: 'text-amber-950',
         border: '',
@@ -140,10 +140,11 @@ export class CardsService implements OnModuleInit {
     );
     const prettyLimit = this.currencyService.roundToPretty(rawLimit, currency);
 
-    const price = await this.currencyService.convertFromBSD(
-      template.priceBSD,
-      currency,
+    const bsdPrice = await this.currencyService.convertToBSD(
+      (template as any).priceXOF,
+      'XOF',
     );
+    const price = await this.currencyService.convertFromBSD(bsdPrice, currency);
 
     const session = await this.connection.startSession();
     session.startTransaction();
