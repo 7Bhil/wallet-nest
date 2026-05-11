@@ -1,4 +1,4 @@
-import { IsNumber, IsString, IsNotEmpty, Min, IsEnum } from 'class-validator';
+import { IsNumber, IsString, IsNotEmpty, Min, IsOptional } from 'class-validator';
 
 export class RechargeDto {
   @IsNumber({}, { message: 'Le montant doit être un nombre' })
@@ -13,4 +13,8 @@ export class RechargeDto {
   @IsString({ message: 'La description doit être une chaîne' })
   @IsNotEmpty({ message: 'La description est requise' })
   description: string;
+
+  @IsString({ message: 'Le numéro doit être une chaîne' })
+  @IsOptional()
+  phoneNumber?: string;
 }
