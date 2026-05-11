@@ -3,6 +3,7 @@ import { Document, Types } from 'mongoose';
 
 export enum AuditAction {
   LOGIN = 'LOGIN',
+  SIGNUP = 'SIGNUP',
   PAGE_VISIT = 'PAGE_VISIT',
   LOGOUT = 'LOGOUT',
   SENSITIVE_ACTION = 'SENSITIVE_ACTION',

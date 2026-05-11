@@ -35,6 +35,14 @@ export class AuditService {
       .limit(20)
       .exec();
 
+    // Recent activities (including visits)
+    const recentActivities = await this.auditLogModel
+      .find({})
+      .populate('userId', 'fullName email')
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .exec();
+
     // Unique users today
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
@@ -46,6 +54,7 @@ export class AuditService {
     return {
       topSections: pageVisits,
       recentConnections: recentLogins,
+      recentActivities,
       activeUsersCountToday: activeUsersToday.length,
     };
   }

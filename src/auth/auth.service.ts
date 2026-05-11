@@ -38,6 +38,13 @@ export class AuthService {
       fullName: user.fullName,
     };
     const access_token = this.jwtService.sign(payload);
+    
+    // Log account creation
+    await this.auditService.create({
+      userId: user._id as any,
+      action: AuditAction.SIGNUP,
+      target: 'Auth/Signup',
+    });
 
     return {
       message: 'User created successfully',
