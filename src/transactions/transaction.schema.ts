@@ -6,7 +6,21 @@ export class Transaction extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
-  @Prop({ required: true, enum: ['TOPUP', 'PAYMENT', 'FEE', 'TRANSFER', 'TRANSFER_IN', 'TRANSFER_OUT', 'CARD_TOPUP', 'CARD_TRANSFER', 'CRYPTO_BUY', 'CRYPTO_SELL'] })
+  @Prop({
+    required: true,
+    enum: [
+      'TOPUP',
+      'PAYMENT',
+      'FEE',
+      'TRANSFER',
+      'TRANSFER_IN',
+      'TRANSFER_OUT',
+      'CARD_TOPUP',
+      'CARD_TRANSFER',
+      'CRYPTO_BUY',
+      'CRYPTO_SELL',
+    ],
+  })
   type: string;
 
   @Prop({ required: true })
@@ -15,7 +29,11 @@ export class Transaction extends Document {
   @Prop({ required: true })
   description: string;
 
-  @Prop({ required: true, enum: ['SUCCESS', 'PENDING', 'FAILED'], default: 'SUCCESS' })
+  @Prop({
+    required: true,
+    enum: ['SUCCESS', 'PENDING', 'FAILED'],
+    default: 'SUCCESS',
+  })
   status: string;
 
   @Prop()

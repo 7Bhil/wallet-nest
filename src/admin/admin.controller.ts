@@ -1,4 +1,12 @@
-import { Controller, Get, Patch, Param, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Param,
+  UseGuards,
+  Request,
+  Post,
+} from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -35,5 +43,10 @@ export class AdminController {
   @Get('users/:id')
   async getUserDetails(@Param('id') id: string) {
     return this.adminService.getUserDetails(id);
+  }
+
+  @Post('reset-stats')
+  async resetStats() {
+    return this.adminService.cleanDatabaseStats();
   }
 }

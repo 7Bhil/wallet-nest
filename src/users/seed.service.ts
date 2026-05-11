@@ -17,11 +17,15 @@ export class SeedService implements OnModuleInit {
     const adminPassword = process.env.ADMIN_PASSWORD;
 
     if (!adminEmail || !adminPassword) {
-      console.log('ℹ️ Seeding Admin ignoré (ADMIN_EMAIL ou ADMIN_PASSWORD non définis)');
+      console.log(
+        'ℹ️ Seeding Admin ignoré (ADMIN_EMAIL ou ADMIN_PASSWORD non définis)',
+      );
       return;
     }
 
-    const existingAdmin = await this.userModel.findOne({ email: adminEmail }).exec();
+    const existingAdmin = await this.userModel
+      .findOne({ email: adminEmail })
+      .exec();
 
     if (!existingAdmin) {
       const hashedPassword = await bcrypt.hash(adminPassword, 10);

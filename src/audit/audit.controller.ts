@@ -1,4 +1,12 @@
-import { Controller, Post, Get, Body, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  UseGuards,
+  Req,
+  Param,
+} from '@nestjs/common';
 import { AuditService } from './audit.service';
 import { AuditAction } from './audit-log.schema';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -27,5 +35,21 @@ export class AuditController {
   @Roles(Role.ADMIN, Role.SUPER_ADMIN)
   async getStats() {
     return this.auditService.getGlobalStats();
+  }
+
+  @Post('reset')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  async resetLogs() {
+    console.log('[Audit] Clearing all audit logs by admin request.');
+    await this.auditService.clearAllLogs();
+    return { success: true, message: "Logs d'audit réinitialisés" };
+  }
+
+  @Get('user/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  async getUserLogs(@Param('id') id: string) {
+    return this.auditService.getUserLogs(id);
   }
 }

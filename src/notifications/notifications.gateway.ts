@@ -14,7 +14,9 @@ import * as jwt from 'jsonwebtoken';
     origin: '*',
   },
 })
-export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class NotificationsGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -44,19 +46,22 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
   }
 
   handleDisconnect(client: Socket) {
-     this.userSockets.forEach((sockets, userId) => {
-       if (sockets.has(client.id)) {
-         sockets.delete(client.id);
-         if (sockets.size === 0) this.userSockets.delete(userId);
-       }
-     });
-     console.log(`🔌 Socket disconnected: ${client.id}`);
+    this.userSockets.forEach((sockets, userId) => {
+      if (sockets.has(client.id)) {
+        sockets.delete(client.id);
+        if (sockets.size === 0) this.userSockets.delete(userId);
+      }
+    });
+    console.log(`🔌 Socket disconnected: ${client.id}`);
   }
 
-  sendNotification(userId: string, data: { type: string; title: string; message: string; amount?: number }) {
+  sendNotification(
+    userId: string,
+    data: { type: string; title: string; message: string; amount?: number },
+  ) {
     const sockets = this.userSockets.get(userId);
     if (sockets) {
-      sockets.forEach(socketId => {
+      sockets.forEach((socketId) => {
         this.server.to(socketId).emit('notification', data);
       });
     }

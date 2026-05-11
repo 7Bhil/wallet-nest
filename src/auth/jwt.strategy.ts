@@ -11,8 +11,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private configService: ConfigService,
   ) {
     const secret = configService.get<string>('JWT_SECRET');
-    if (!secret || secret === 'generer-une-cle-secrete-tres-longue-en-production') {
-      throw new Error('JWT_SECRET est introuvable ou non sécurisé dans les variables d\'environnement');
+    if (
+      !secret ||
+      secret === 'generer-une-cle-secrete-tres-longue-en-production'
+    ) {
+      throw new Error(
+        "JWT_SECRET est introuvable ou non sécurisé dans les variables d'environnement",
+      );
     }
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -30,13 +35,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (user.status === 'BLOCKED') {
       throw new UnauthorizedException('Votre compte est bloqué.');
     }
-    return { 
-      id: user._id, 
-      email: user.email, 
-      role: user.role, 
+    return {
+      id: user._id,
+      email: user.email,
+      role: user.role,
       fullName: user.fullName,
       balance: user.balance,
-      currency: user.currency 
+      currency: user.currency,
     };
   }
 }

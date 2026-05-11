@@ -8,6 +8,8 @@ export class UpdateProfileDto {
 
   @IsString({ message: 'La devise doit être une chaîne' })
   @IsOptional()
-  @IsEnum(['USD', 'EUR', 'GBP', 'XOF', 'BSD'], { message: 'Devise non supportée' })
+  @IsEnum(['USD', 'EUR', 'GBP', 'XOF', 'BSD'], {
+    message: 'Devise non supportée',
+  })
   currency?: string;
 }

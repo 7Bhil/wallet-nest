@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request, Patch, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  UseGuards,
+  Request,
+  Patch,
+  Delete,
+} from '@nestjs/common';
 import { CardsService } from './cards.service';
 import { CreateCardDto } from './dto/create-card.dto';
 import { TopupCardDto } from './dto/topup-card.dto';
@@ -34,21 +44,18 @@ export class CardsController {
   topupCard(
     @Request() req: any,
     @Param('id') id: string,
-    @Body() topupCardDto: TopupCardDto
+    @Body() topupCardDto: TopupCardDto,
   ) {
     return this.cardsService.topupCard(req.user.id, id, topupCardDto.amount);
   }
 
   @Post('transfer')
-  cardTransfer(
-    @Request() req: any,
-    @Body() cardTransferDto: CardTransferDto
-  ) {
+  cardTransfer(@Request() req: any, @Body() cardTransferDto: CardTransferDto) {
     return this.cardsService.cardTransfer(
-      req.user.id, 
-      cardTransferDto.fromCardId, 
-      cardTransferDto.toCardId, 
-      cardTransferDto.amount
+      req.user.id,
+      cardTransferDto.fromCardId,
+      cardTransferDto.toCardId,
+      cardTransferDto.amount,
     );
   }
 

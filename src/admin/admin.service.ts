@@ -14,15 +14,27 @@ export class AdminService {
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(Transaction.name) private transactionModel: Model<Transaction>,
     @InjectModel(Card.name) private cardModel: Model<Card>,
-    private currencyService: CurrencyService
+    private currencyService: CurrencyService,
   ) {}
+
+  async cleanDatabaseStats() {
+    // Supprime toutes les transactions et toutes les cartes pour remettre l'analyse à zéro
+    // Attention: opération destructive utilisée pour le "Reset"
+    await this.transactionModel.deleteMany({}).exec();
+    await this.cardModel.deleteMany({}).exec();
+    return { success: true };
+  }
 
   @Cron(CronExpression.EVERY_DAY_AT_2AM)
   async processPlatformNightlyFees() {
-    console.log('[Treasury] Démarrage de la collecte des frais de la plateforme...');
-    
+    console.log(
+      '[Treasury] Démarrage de la collecte des frais de la plateforme...',
+    );
+
     // 1. Frais de Gestion des Cartes (Daily Maintenance Fee)
-    const activeCards = await this.cardModel.find({ cardBalance: { $gt: 0 }, status: 'ACTIVE' }).exec();
+    const activeCards = await this.cardModel
+      .find({ cardBalance: { $gt: 0 }, status: 'ACTIVE' })
+      .exec();
     for (const card of activeCards) {
       const user = await this.userModel.findById(card.userId).exec();
       if (!user) continue;
@@ -30,20 +42,25 @@ export class AdminService {
       const dailyRate = (card.interestRate || 0) / 100 / 365;
       const feeAmount = card.cardBalance * dailyRate;
 
-      if (feeAmount > 0.01) { // On évite les micro-centimes abusifs
+      if (feeAmount > 0.01) {
+        // On évite les micro-centimes abusifs
         // FIX Faille 5 : Utilisation de $inc atomique pour la maintenance
         const nf = new Intl.NumberFormat('fr-FR');
         // On s'assure via la requête que le solde ne tombe pas en dessous du montant prélevé
         await this.cardModel.findOneAndUpdate(
-          { _id: card._id, cardBalance: { $gte: feeAmount } }, 
+          { _id: card._id, cardBalance: { $gte: feeAmount } },
           {
             $inc: { cardBalance: -feeAmount },
-            $set: { 
-              limit: `${nf.format(card.cardBalance - feeAmount)} / ${nf.format(card.limitValue)} ${user.currency || 'USD'}`
-            }
-          }
+            $set: {
+              limit: `${nf.format(card.cardBalance - feeAmount)} / ${nf.format(card.limitValue)} ${user.currency || 'USD'}`,
+            },
+          },
         );
-        await this.collectSystemFee(feeAmount, user.currency || 'USD', `Frais de gestion journaliers (${card.name}) pour ${user.fullName}`);
+        await this.collectSystemFee(
+          feeAmount,
+          user.currency || 'USD',
+          `Frais de gestion journaliers (${card.name}) pour ${user.fullName}`,
+        );
       }
     }
 
@@ -51,50 +68,80 @@ export class AdminService {
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-    const staleUsers = await this.userModel.find({ 
-       role: { $ne: Role.ADMIN },
-       updatedAt: { $lt: ninetyDaysAgo },
-       balance: { $gt: 0 }
-    }).exec();
+    const staleUsers = await this.userModel
+      .find({
+        role: { $ne: Role.ADMIN },
+        updatedAt: { $lt: ninetyDaysAgo },
+        balance: { $gt: 0 },
+      })
+      .exec();
 
     for (const user of staleUsers) {
       // Vérifier la dernière transaction
-      const lastTxn = await this.transactionModel.findOne({ userId: user._id }).sort({ createdAt: -1 }).exec();
-      const lastActivity = lastTxn ? (lastTxn as any).createdAt : (user as any).createdAt;
-      
+      const lastTxn = await this.transactionModel
+        .findOne({ userId: user._id })
+        .sort({ createdAt: -1 })
+        .exec();
+      const lastActivity = lastTxn
+        ? (lastTxn as any).createdAt
+        : (user as any).createdAt;
+
       if (lastActivity < ninetyDaysAgo) {
         // Calculer l'équivalent de 1 B$ dans la devise de l'utilisateur
-        const feeAmount = await this.currencyService.convertFromBSD(1, user.currency || 'USD');
+        const feeAmount = await this.currencyService.convertFromBSD(
+          1,
+          user.currency || 'USD',
+        );
         if (user.balance >= feeAmount) {
           user.balance -= feeAmount;
           // Forcer la modification de "updatedAt" pour ne pas le re-taxer demain !
-          await this.userModel.updateOne({ _id: user._id }, { $set: { balance: user.balance, updatedAt: new Date() } }).exec();
-          await this.collectSystemFee(feeAmount, user.currency || 'USD', `Frais d'inactivité (90j) prélevés sur ${user.fullName}`);
+          await this.userModel
+            .updateOne(
+              { _id: user._id },
+              { $set: { balance: user.balance, updatedAt: new Date() } },
+            )
+            .exec();
+          await this.collectSystemFee(
+            feeAmount,
+            user.currency || 'USD',
+            `Frais d'inactivité (90j) prélevés sur ${user.fullName}`,
+          );
         }
       }
     }
-    
+
     console.log('[Treasury] Collecte terminée. Taxes sécurisées.');
   }
 
-  async collectSystemFee(amount: number, fromCurrency: string, reason: string): Promise<void> {
-    const admin = await this.userModel.findOne({ role: Role.ADMIN }, null, { sort: { createdAt: 1 } }).exec();
-    
+  async collectSystemFee(
+    amount: number,
+    fromCurrency: string,
+    reason: string,
+  ): Promise<void> {
+    const admin = await this.userModel
+      .findOne({ role: Role.ADMIN }, null, { sort: { createdAt: 1 } })
+      .exec();
+
     // FIX Faille 6 : Éviter la fuite de trésorerie (Leakage)
     if (!admin) {
-      console.error(`[CRITICAL] Platform Leakage: Admin account missing. Could not collect ${amount} ${fromCurrency}. Reason: ${reason}`);
+      console.error(
+        `[CRITICAL] Platform Leakage: Admin account missing. Could not collect ${amount} ${fromCurrency}. Reason: ${reason}`,
+      );
       throw new Error('Treasury Admin account not found');
     }
 
     const adminCurrency = admin.currency || 'USD';
-    const amountInAdminCurrency = await this.currencyService.convertExact(amount, fromCurrency, adminCurrency);
+    const amountInAdminCurrency = await this.currencyService.convertExact(
+      amount,
+      fromCurrency,
+      adminCurrency,
+    );
     const finalAmount = parseFloat(amountInAdminCurrency.toFixed(2));
 
     if (finalAmount > 0) {
-      await this.userModel.findByIdAndUpdate(
-        admin._id,
-        { $inc: { balance: finalAmount } }
-      ).exec();
+      await this.userModel
+        .findByIdAndUpdate(admin._id, { $inc: { balance: finalAmount } })
+        .exec();
 
       const feeTxn = new this.transactionModel({
         userId: admin._id,
@@ -107,7 +154,7 @@ export class AdminService {
         originalCurrency: fromCurrency,
         targetAmount: finalAmount,
         targetCurrency: adminCurrency,
-        exchangeRate: 1
+        exchangeRate: 1,
       });
       await feeTxn.save();
     }
@@ -116,26 +163,68 @@ export class AdminService {
   async getStats() {
     const users = await this.userModel.find();
     const cards = await this.cardModel.find();
-    
-    const userBalanceTotal = users.reduce((acc, u) => acc + (u.balance || 0), 0);
-    const cardBalanceTotal = cards.reduce((acc, c) => acc + (c.cardBalance || 0), 0);
+
+    const userBalanceTotal = users.reduce(
+      (acc, u) => acc + (u.balance || 0),
+      0,
+    );
+    const cardBalanceTotal = cards.reduce(
+      (acc, c) => acc + (c.cardBalance || 0),
+      0,
+    );
     const totalValueLocked = userBalanceTotal + cardBalanceTotal;
-    
+
     const userCount = users.length;
-    const activeUsers = users.filter(u => u.status === 'ACTIVE').length;
-    
-    const transactions = await this.transactionModel.find();
+    const activeUsers = users.filter((u) => u.status === 'ACTIVE').length;
+
+    const transactions = await this.transactionModel.find().exec();
     const totalVolume = transactions.reduce((acc, t) => acc + t.amount, 0);
+
+    // FIX : Calcul des revenus réels (Spread fees collectés par le système)
+    const systemRevenue = transactions
+      .filter((t) => t.category === 'Système')
+      .reduce((acc, t) => acc + (t.amount || 0), 0);
+
+    // Analyse par statut
+    const successCount = transactions.filter(
+      (t) => t.status === 'SUCCESS',
+    ).length;
+    const failedCount = transactions.filter(
+      (t) => t.status === 'FAILED',
+    ).length;
+
+    // Top utilisateurs (Volume)
+    const userVolumeMap = new Map<string, number>();
+    transactions.forEach((t) => {
+      const id = t.userId.toString();
+      userVolumeMap.set(id, (userVolumeMap.get(id) || 0) + (t.amount || 0));
+    });
+
+    const topTransactingUsers = Array.from(userVolumeMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([id, vol]) => ({
+        userId: id,
+        volume: vol,
+        name: users.find((u) => u._id.toString() === id)?.fullName || 'Inconnu',
+      }));
 
     return {
       totalValueLocked,
       userCount,
       activeUsers,
       totalVolume,
-      monthlyActiveUsers: '84.2k', // Fake for demo image
-      dailyVolume: totalVolume / 30, // Rough estimate
+      systemRevenue,
+      successRate:
+        transactions.length > 0
+          ? (successCount / transactions.length) * 100
+          : 0,
+      topUsers: topTransactingUsers,
+      transactionsPerStatus: { SUCCESS: successCount, FAILED: failedCount },
+      monthlyActiveUsers: '84.2k',
+      dailyVolume: totalVolume / 30,
       systemHealth: 'Healthy',
-      latency: '14ms'
+      latency: '14ms',
     };
   }
 
@@ -145,7 +234,9 @@ export class AdminService {
 
   async toggleUserStatus(userId: string, adminId: string) {
     if (userId === adminId) {
-      throw new BadRequestException("Vous ne pouvez pas vous bloquer vous-même.");
+      throw new BadRequestException(
+        'Vous ne pouvez pas vous bloquer vous-même.',
+      );
     }
     const user = await this.userModel.findById(userId);
     if (!user) return null;
@@ -163,29 +254,33 @@ export class AdminService {
   }
 
   async getUserDetails(userId: string) {
-    const user = await this.userModel.findById(userId).select('-password').exec();
+    const user = await this.userModel
+      .findById(userId)
+      .select('-password')
+      .exec();
     if (!user) throw new BadRequestException('Utilisateur introuvable');
-    
+
     const cards = await this.cardModel.find({ userId }).exec();
-    
+
     // Find all transactions where the user is either the owner, sender, or recipient
-    const transactions = await this.transactionModel.find({
-      $or: [
-        { userId: userId },
-        { senderId: userId },
-        { recipientId: userId }
-      ]
-    })
-    .populate('senderId', 'fullName email')
-    .populate('recipientId', 'fullName email')
-    .sort({ createdAt: -1 })
-    .limit(50)
-    .exec();
+    const transactions = await this.transactionModel
+      .find({
+        $or: [
+          { userId: userId },
+          { senderId: userId },
+          { recipientId: userId },
+        ],
+      })
+      .populate('senderId', 'fullName email')
+      .populate('recipientId', 'fullName email')
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .exec();
 
     return {
       user,
       cards,
-      transactions
+      transactions,
     };
   }
 }

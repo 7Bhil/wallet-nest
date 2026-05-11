@@ -5,7 +5,11 @@ import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 
 @Injectable()
 export class AuthService {
@@ -27,7 +31,12 @@ export class AuthService {
       password: hashedPassword,
     });
 
-    const payload = { email: user.email, sub: user._id, role: user.role, fullName: user.fullName };
+    const payload = {
+      email: user.email,
+      sub: user._id,
+      role: user.role,
+      fullName: user.fullName,
+    };
     const access_token = this.jwtService.sign(payload);
 
     return {
@@ -47,13 +56,18 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
+    const isPasswordValid = await bcrypt.compare(
+      loginDto.password,
+      user.password,
+    );
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
     if (user.status === 'BLOCKED') {
-      throw new UnauthorizedException('Votre compte a été suspendu. Veuillez contacter l\'administrateur.');
+      throw new UnauthorizedException(
+        "Votre compte a été suspendu. Veuillez contacter l'administrateur.",
+      );
     }
 
     // Log the successful login
@@ -63,7 +77,12 @@ export class AuthService {
       target: 'Auth',
     });
 
-    const payload = { email: user.email, sub: user._id, role: user.role, fullName: user.fullName };
+    const payload = {
+      email: user.email,
+      sub: user._id,
+      role: user.role,
+      fullName: user.fullName,
+    };
     return {
       access_token: this.jwtService.sign(payload),
       user: {

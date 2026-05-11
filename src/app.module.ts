@@ -34,10 +34,12 @@ import { APP_GUARD } from '@nestjs/core';
     NotificationsModule,
     AdminModule,
     AuditModule,
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 100,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
   ],
   controllers: [AppController],
   providers: [

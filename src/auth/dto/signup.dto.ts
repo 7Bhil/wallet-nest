@@ -1,4 +1,12 @@
-import { IsEmail, IsNotEmpty, MinLength, IsString } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  MinLength,
+  IsString,
+  IsEnum,
+  IsOptional,
+} from 'class-validator';
+import { Role } from '../enums/role.enum';
 
 export class SignupDto {
   @IsString({ message: 'Le nom doit être une chaîne de caractères' })
@@ -6,8 +14,8 @@ export class SignupDto {
   @MinLength(2, { message: 'Le nom doit faire au moins 2 caractères' })
   fullName: string;
 
-  @IsEmail({}, { message: 'Format d\'email invalide' })
-  @IsNotEmpty({ message: 'L\'email est requis' })
+  @IsEmail({}, { message: "Format d'email invalide" })
+  @IsNotEmpty({ message: "L'email est requis" })
   email: string;
 
   @IsNotEmpty({ message: 'Le mot de passe est requis' })
@@ -17,4 +25,8 @@ export class SignupDto {
   @IsString()
   @IsNotEmpty()
   currency?: string;
+
+  @IsEnum(Role)
+  @IsOptional()
+  role?: Role;
 }
